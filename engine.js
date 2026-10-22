@@ -478,16 +478,63 @@ function integrate(s,supported,opsLevel){
  return result;
 }
 
-function deal(s,i){
+// Names use their own deterministic search; only the two legacy name draws consume campaign RNG.
+const companyNameParts={
+ '企业软件':[
+  '知序 云章 数舟 企衡 码桥 经略 账云 序言 算筹 简策 企脉 信栈 维策 智账 云枢 数原 合账 章程 方略 企程 易序 明策 码原 信域 企川 云简 数衡 联策 文枢 序川 易衡 典策'.split(' '),
+  '软件 信息 数科 系统 智软 数联 云科 企服 数据 科技 数智 信科'.split(' ')],
+ '精密制造':[
+  '钧衡 铸川 锐准 衡准 砺锋 百锻 天工 规矩 卓衡 恒铸 匠原 金准 立锋 精纬 铎山 力衡 鼎铸 卓钧 衡岳 锐衡 星铸 准元 磐工 砺川 元钧 钧石 衡工 铸岳 精原 轴心 齐工 准达'.split(' '),
+  '精工 制造 智造 工控 机电 装备 精密 工业 传动 仪器 自动化 机械'.split(' ')],
+ '消费品牌':[
+  '禾里 麦田 南橘 青柚 谷雨 栖木 山集 初禾 柚白 本味 青屿 花序 橙光 林间 晨集 原野 拾光 春山 桐里 谷川 白露 暖原 良木 朴集 简禾 岚居 茶山 晴野 稻香 木白 川集 日和'.split(' '),
+  '生活 优品 商贸 良品 消费 家品 精选 品牌 日用 物产 百货 实业'.split(' ')],
+ '通信设备':[
+  '星络 波导 讯川 光桥 频域 海缆 天络 云波 迅达 光程 信航 维讯 联潮 传星 讯峰 光岳 频川 瑞讯 通岳 海讯 光维 联衡 星通 拓频 讯原 天频 波澜 链星 讯达 光启 连山 脉络'.split(' '),
+  '通信 通讯 光电 网络 互联 信通 联讯 通联 电子 设备 信科 联科'.split(' ')],
+ '互联网':[
+  '集川 万集 巷口 星集 桥市 见山 众桥 河图 联市 城集 四邻 易集 云渡 百舸 聚川 通途 千集 汇途 川流 合市 近邻 望桥 远集 千桥 海集 行舟 商渡 寻集 山海 汇桥 星渡 万桥'.split(' '),
+  '互联 在线 网络 网联 商联 数网 云集 汇联 易联 云网 数联 网科'.split(' ')],
+ '生物科技':[
+  '澜序 康谱 禾因 微澜 基源 研序 澄谱 安序 森因 诺因 益谱 原序 清谱 博序 臻源 康因 微禾 谱元 复原 禾谱 同源 研禾 观微 原点 维康 和谱 序康 谱禾 新序 岚谱 知微 晨序'.split(' '),
+  '生物 医研 诊断 生科 检验 医科 生研 医工 生命 医检 生技 医学'.split(' ')],
+ '移动应用':[
+  '轻点 随心 指间 掌禾 近点 小径 闪点 邻里 轻帆 即刻 触禾 一程 步点 简行 点舟 掌程 小满 微途 轻途 随步 近程 知行 微程 口袋 觅途 朝夕 拾步 轻邻 触达 即行 简途 点集'.split(' '),
+  '移动 应用 掌讯 云服 互联 生活 数服 智联 轻应用 掌联 微服 随行'.split(' ')],
+ '清洁能源':[
+  '曜川 旭能 青电 沐光 晟源 绿川 碳原 光储 逐日 晨光 澄能 晴川 沃能 恒曜 昱川 清晖 原能 赫光 长曜 森电 新曜 启阳 光禾 曜原 碧源 晟川 星能 昱源 晴能 澄光 曦和 源川'.split(' '),
+  '能源 储能 电力 新能 能科 绿能 清能 智电 能联 电科 电能 能创'.split(' ')],
+ '人工智能':[
+  '观澜 识微 语川 知元 矩元 深序 思衡 推源 识途 算域 语衡 元识 知澜 函数 启算 维知 明识 语原 推演 识原 知象 深知 算舟 元知 思原 语序 识川 知衡 神思 算原 凌知 维象'.split(' '),
+  '智能 智研 计算 智算 算法 智科 认知 智联 数智 智感 智工 智云'.split(' ')]
+};
+function nameKey(name){return String(name).normalize('NFKC').trim().replace(/\s+\d+$/,'');}
+function usedCompanyNames(s){
+ const names=new Set(Object.values(incumbentNames).flat().map(nameKey));
+ for(const c of [...s.deals,...s.portfolio,...Object.values(s.markets||{}).flatMap(m=>m.members)])names.add(nameKey(c.name));
+ return names;
+}
+function companyName(s,sector,id,entropy,used){
+ const [roots,tails]=companyNameParts[sector],size=roots.length*tails.length;
+ const offset=hash(id+':'+sector+':'+entropy)%size;
+ // Five is coprime to 384, so probing visits every ordinary name before the longer reserve.
+ for(let tier=0;tier<=roots.length;tier++)for(let n=0;n<size;n++){
+  const index=(offset+n*5)%size,name=roots[Math.floor(index/tails.length)]+(tier?roots[tier-1]:'')+tails[index%tails.length];
+  if(!/(.)\1|(.{2})\2/.test(name)&&!used.has(nameKey(name))){used.add(nameKey(name));return name;}
+ }
+ throw Error('企业名称库已用完');
+}
+function newDeals(s){const used=usedCompanyNames(s);return Array.from({length:4},(_,i)=>deal(s,i,used));}
+function deal(s,i,used=usedCompanyNames(s)){
  const available=sectors.filter(x=>x.from<=s.year),sector=available[Math.floor(rng(s)*available.length)];
- const a=['远川','衡石','景行','知衡','澄源','启明','博原','方舟','合序','致远','青岳','云序','元拓','星原','松岚','万象'],b=['科技','实业','系统','创新','智能','网络'];
- const name=a[Math.floor(rng(s)*a.length)]+b[Math.floor(rng(s)*b.length)]+' '+String(s.year).slice(2)+String(i+1);
+ const entropy=Math.floor(rng(s)*4294967296)+':'+Math.floor(rng(s)*4294967296);
+ const name=companyName(s,sector.name,s.year+'-'+i,entropy,used);
  const c={id:s.year+'-'+i,name,sector:sector.name,icon:sector.icon,desc:sector.desc,edge:sector.edge,risk:sector.risk,value:1,quality:.25+rng(s)*.7,volatility:.35+rng(s)*.45,revenue:Math.round(65+rng(s)*145),growth:Math.round(8+rng(s)*50),runway:Math.round(9+rng(s)*13),team:Math.round(6+rng(s)*20),dd:false,status:'available',age:0,invested:0,equity:0,round:null,proceeds:0,notes:[]};
  if(s.ruleset===12){c.economyVersion=12;c.expansionStreak=0;}financials(c,s.year);acquisitionFields(c);financeFields(c);workoutFields(c);c.liquidation=null;divestFields(c);rebuildFields(c);dividendFields(c);c.competition=.2+rng(s)*.6;const k=costs(c,c.revenue);c.costs=k.total;c.profit=c.revenue-c.costs;c.cashFlow=c.profit-c.capex;c.profitYears=c.profit>0?1:0;runway(c);
  const priceNoise=.9+rng(s)*.3,askingPremium=s.ruleset===12?1.8+c.growth*.02+c.quality*.8+(era(s.year).hot.includes(c.sector)?.4:0):1;c.value=Math.round(fundamental(c,era(s.year))*priceNoise*askingPremium);Object.assign(c.financialHistory[0],k,{costs:c.costs,profit:c.profit,cashFlow:c.cashFlow,competition:c.competition,value:c.value});if(s.markets)registerMarket(s,c);return c;
 }
 function sourceDeals(s){if(s.ended)return;const wanted=level(s,'research');while(s.extraDeals<wanted){const i=4+s.extraDeals++;s.deals.push(deal(s,i));log(s,`行业研究员发现额外项目：${s.deals.at(-1).name}。`);}record(s);}
-function fresh(seed=Date.now()>>>0,ruleset=12){if(![11,12].includes(ruleset))throw Error('Unknown economic rules');const s={version:10,...(ruleset===12?{ruleset:12}:{}),dividends:0,seed:seed>>>0,year:1990,initial:1000,cash:1000,invested:0,returned:0,expenses:0,expenseBreakdown:{legacy:0,research:0,operations:0,payroll:0,recruiting:0,training:0},team:emptyTeam(),extraDeals:0,portfolio:[],deals:[],logs:[],history:[],ended:false};s.deals=Array.from({length:4},(_,i)=>deal(s,i));initMarkets(s);log(s,'远见资本成立，1,000 万元到账。第一批项目已经送来。');record(s);return s;}
+function fresh(seed=Date.now()>>>0,ruleset=12){if(![11,12].includes(ruleset))throw Error('Unknown economic rules');const s={version:10,...(ruleset===12?{ruleset:12}:{}),dividends:0,seed:seed>>>0,year:1990,initial:1000,cash:1000,invested:0,returned:0,expenses:0,expenseBreakdown:{legacy:0,research:0,operations:0,payroll:0,recruiting:0,training:0},team:emptyTeam(),extraDeals:0,portfolio:[],deals:[],logs:[],history:[],ended:false};s.deals=newDeals(s);initMarkets(s);log(s,'远见资本成立，1,000 万元到账。第一批项目已经送来。');record(s);return s;}
 function teamQuote(s,key,action){
  const r=roles[key],t=s.team[key];if(!r||!t||s.ended)return {ok:false,reason:'基金已结案，或没有这个岗位'};
  let target=t.level,fee=0,salary=0;
@@ -566,7 +613,7 @@ function advance(s){
   if(c.age>=4&&!c.integration&&!currentRebuild(c)&&shocks.exit<exitChance){const ipo=c.profitYears>=2&&c.revenue>=180&&c.quality>.65&&c.market.share>=.025&&shocks.ipo>.45;const factor=ipo?1.25+exitLevel*.06:clamp(.95+margin*.3-c.competition*.08+exitLevel*.05,.65,1.25);const offer={year:s.year,factor,value:exitValue(c,factor),status:ipo?'上市退出':'并购退出'};if(c.exitPolicy==='review'){c.exitOffer=offer;log(s,`${c.name} 收到${offer.status}报价，基金可回收 ${offer.value.toFixed(1)} 万；本年可接受，也可继续持有。`,'success');}else realize(s,c,offer.value,offer.status);}
  }
  if(s.year>=2026){for(const c of s.portfolio.filter(c=>c.status==='active'))realize(s,c,exitValue(c,terminalFactor(s,exitLevel)),'到期清算');s.deals=[];s.ended=true;log(s,`基金到期：${s.ruleset===12?'经营业务按估值的':'剩余股权按账面价值的'} ${Math.round(terminalFactor(s,exitLevel)*100)}% ${s.ruleset===12?'处置，现金按原额扣除债务后分配':'变现'}，薪酬停止续付。`,'success');}
- else{renewTeam(s);s.extraDeals=0;s.deals=Array.from({length:4},(_,i)=>deal(s,i));sourceDeals(s);log(s,`今年又送来 ${s.deals.length} 份项目材料。`);}
+ else{renewTeam(s);s.extraDeals=0;s.deals=newDeals(s);sourceDeals(s);log(s,`今年又送来 ${s.deals.length} 份项目材料。`);}
  record(s);return true;
 }
 
