@@ -15,3 +15,6 @@ main{max-width:1700px;padding:0 34px;margin:auto}.desk-shell{display:grid;grid-t
 .desk-rail{position:sticky;top:0;align-self:start;max-height:100dvh}.annual-dispatch{border-bottom:1px solid var(--line);margin-bottom:20px}.annual-dispatch>summary{padding:8px 0 16px;font-family:var(--serif);font-size:16px;color:var(--navy)}.annual-dispatch .year-review{margin-top:16px;border-bottom:0}.annual-dispatch .review-heading{display:none}
 @media(min-width:701px) and (max-height:760px){.rail-seal{display:none}}
 @media(max-width:700px){.desk-rail{position:static;max-height:none}.annual-dispatch>summary{font-size:15px}}
+
+/* Exit receipts stay readable in the shared scrollable dialog on narrow screens. */
+.exit-notice-list{display:grid;gap:16px;margin:22px 0}.exit-notice-item{min-width:0;border:1px solid var(--line);padding:18px;background:#f8f7f1}.exit-notice-item h3{font-size:19px;margin:12px 0;overflow-wrap:anywhere}.exit-notice-item .cost-breakdown{margin:14px 0}.exit-notice-item .cost-breakdown span{min-width:0;flex-wrap:wrap;gap:4px 12px}.exit-notice-item button{white-space:normal;max-width:100%}@media(max-width:600px){.exit-notice-item{padding:14px}.exit-notice-item h3{font-size:18px}.exit-notice-item button{width:100%}}
