@@ -35,7 +35,7 @@ const profiles={
 };
 const roles={
  research:{name:'行业研究员',code:'行业研究',salary:[0,8,16,30],entry:8,training:[0,0,15,30],description:'替基金跑行业、找项目。随资历提升，每年多带回 1 / 2 / 3 个案子，并附一份初步评分。'},
- diligence:{name:'尽调专家',code:'独立尽调',salary:[0,10,20,36],entry:10,training:[0,0,18,35],description:'核查创始人递来的材料。单次尽调花费降到 4 / 3 / 2 万，能力判断更准，资深成员还会补做经营压力测算。'},
+ diligence:{name:'尽调专家',code:'独立尽调',salary:[0,10,20,36],entry:10,training:[0,0,18,35],description:'核查创始人递来的材料。在岗期间的项目尽调已含薪酬，不另收费；已尽调项目可免费补全报告。晋升后判断更准，并逐级补充经营压力测算。'},
  operations:{name:'投后经理',code:'投后管理',salary:[0,14,28,48],entry:14,training:[0,0,22,40],description:'先去现金最紧的企业盯经营，按资历同时照看 3 / 6 / 10 家。能帮企业留客户、压成本，也能替并购后的整合分担一些麻烦。'},
  exit:{name:'退出顾问',code:'退出交易',salary:[0,12,24,42],entry:12,training:[0,0,20,36],description:'替基金找买方、谈价钱。有他跟进，退出更容易谈成，主动转让和到期处置也能少让一些价。'}
 };
@@ -502,11 +502,17 @@ function manageTeam(s,key,action){
  const q=teamQuote(s,key,action);if(!q.ok)return false;const t=s.team[key],r=roles[key];
  if(action==='pause'){t.active=false;log(s,`暂停 ${r.name} 的工作，本年已付的薪酬不退。`);record(s);return true;}
  if(q.fee)expense(s,q.fee,action==='hire'?'recruiting':'training');if(q.salary)expense(s,q.salary,'payroll');t.level=q.target;t.active=true;t.paidYear=s.year;
- log(s,`${r.name} ${action==='hire'?'入职':action==='upgrade'?'升级':'恢复服务'} · ${t.level} 级，支付 ${q.cost.toFixed(1)} 万元（含本期薪酬）。`);if(key==='research')sourceDeals(s);record(s);return true;
+ log(s,`${r.name} ${action==='hire'?'入职':action==='upgrade'?'升级':'恢复服务'} · ${t.level} 级，支付 ${q.cost.toFixed(1)} 万元（含本期薪酬）。`);if(key==='research')sourceDeals(s);if(key==='diligence')supplementDiligence(s);record(s);return true;
 }
 function renewTeam(s){for(const key of Object.keys(roles)){const t=s.team[key];if(!t.active)continue;const due=roles[key].salary[t.level];if(s.cash+1e-8>=due){expense(s,due,'payroll');t.paidYear=s.year;log(s,`${roles[key].name} 续聘，预付本期薪酬 ${due} 万元。`);}else{t.active=false;log(s,`现金不足，${roles[key].name} 暂时停工，已有资历保留。`,'warning');}}}
-function diligenceCost(s){return 5-level(s,'diligence');}
-function research(s,id){const c=s.deals.find(c=>c.id===id),l=level(s,'diligence'),fee=diligenceCost(s);if(s.ended||!c||c.status!=='available'||c.ddLevel>=l||s.cash<fee)return false;expense(s,fee,'research');c.dd=true;c.ddLevel=l;log(s,`完成 ${c.name} 的${l?'专家 '+l+' 级':'基础'}尽调，支出 ${fee} 万元。`);record(s);return true;}
+function diligenceCost(s){return level(s,'diligence')>0?0:5;}
+function supplementDiligence(s){
+ const l=level(s,'diligence');if(!l)return;
+ const updated=s.deals.filter(c=>c.status==='available'&&c.dd&&c.ddLevel<l);
+ for(const c of updated)c.ddLevel=l;
+ if(updated.length)log(s,`尽调专家免费补全 ${updated.length} 份已尽调报告至 ${l} 级：${updated.map(c=>c.name).join('、')}。已含本期薪酬，不另收项目费用。`);
+}
+function research(s,id){const c=s.deals.find(c=>c.id===id),l=level(s,'diligence'),fee=diligenceCost(s);if(s.ended||!c||c.status!=='available'||c.ddLevel>=l||s.cash<fee)return false;if(fee>0)expense(s,fee,'research');c.dd=true;c.ddLevel=l;log(s,`完成 ${c.name} 的${l?'专家 '+l+' 级':'基础'}尽调${fee>0?'，支出 '+fee+' 万元':'，已含本期专家薪酬，不另收项目费用'}。`);record(s);return true;}
 function stressProfit(c){const revenue=c.revenue*.8;return revenue-costs(c,revenue).total;}
 function score(c){return Math.round(clamp(50+c.growth*.3+(c.profit/Math.max(1,c.revenue))*45-c.competition*22+Math.min(c.runway,24)*.5,0,100));}
 function invest(s,id,amount,thesis=null){const c=s.deals.find(c=>c.id===id);if(s.ended||!c||c.status!=='available'||![50,100,200].includes(amount)||s.cash<amount)return false;s.cash-=amount;s.invested+=amount;c.equity=amount/(c.value+amount);c.value+=amount;c.cash+=amount;runway(c);c.invested=amount;c.status='active';c.founded=s.year;if(thesis&&['cash','growth','product'].includes(thesis)){c.thesis={kind:thesis,year:s.year,revenue:c.revenue,profit:c.profit,equity:c.equity};c.exitPolicy='review';}c.notes.push(`${s.year} 年首次投资 ${amount} 万元，资金进入企业现金账户`);s.portfolio.push(c);s.deals=s.deals.filter(d=>d.id!==id);log(s,`投资 ${c.name} ${amount} 万元，获得 ${(c.equity*100).toFixed(1)}% 股权。`,'investment');record(s);return true;}
