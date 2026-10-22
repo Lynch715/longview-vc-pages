@@ -38,3 +38,6 @@ select,input:not([type=file]){min-height:44px;max-width:100%}
 .strategy-picker{min-width:0}.strategy-picker select{min-width:0}
 dialog{scroll-padding-top:80px;scroll-padding-bottom:24px}
 @media(max-width:700px), (max-width:1000px) and (max-height:500px){html{scroll-padding-bottom:calc(90px + var(--safe-bottom))}.tabs{overflow:visible}.tabs button{overflow-wrap:anywhere}}
+
+/* A project identifier belongs beside the company name, never inside it. */
+.project-code{display:block;margin:5px 0 7px;color:var(--gold);font:11px/1.6 var(--font-ui);letter-spacing:.3px;overflow-wrap:anywhere}.project-code b{font:inherit;font-variant-numeric:tabular-nums}.project-code+small{display:block}.acquisition-target .project-code,.liquidation-buyers .project-code{margin:0}.exit-notice-item .project-code{margin-bottom:12px}
