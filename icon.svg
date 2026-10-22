@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="远见资本：远山与资本之门">
+<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f0ddb0"/><stop offset=".5" stop-color="#bd9859"/><stop offset="1" stop-color="#e6c988"/></linearGradient></defs>
+<rect width="512" height="512" rx="100" fill="#102e2b"/>
+<path d="M144 362V202a112 112 0 0 1 224 0v160" fill="none" stroke="url(#gold)" stroke-width="13"/>
+<path d="M177 350V208a79 79 0 0 1 158 0v142" fill="none" stroke="#f2edda" stroke-width="6"/>
+<path d="m132 326 78-66 50 43 62-88 58 111" fill="none" stroke="url(#gold)" stroke-width="15" stroke-linejoin="round"/>
+<circle cx="255" cy="198" r="17" fill="#e9d29d"/>
+<path d="M126 371h260M188 396h136" fill="none" stroke="url(#gold)" stroke-width="9"/>
+</svg>

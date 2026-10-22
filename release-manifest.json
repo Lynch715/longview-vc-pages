@@ -1,0 +1,19 @@
+{
+  "version": "0.13.0",
+  "files": {
+    "app.js": "ca3fe0dc51dbe4d6c486ff0ac041a64d07e1358833c1b40b9805c7d6374239d9",
+    "desk.css": "03475a34787598771691c1717c5d404d4b8ef1b910d270a70e4daf38d6de4514",
+    "engine.js": "096c46602a109f325480e6f468c1032b49c98ebd6a37d687cae794fc7d7deab1",
+    "favicon.ico": "54e8db7ace63f57654cdf26f9820244cbf69df6949eb3cae9c94c21d588b1cd5",
+    "icon-192.png": "94775a585f1860e81e48128b5a3873cb0431d5fdf07f7003da365bd41305b321",
+    "icon-32.png": "ab0eb059bda3808f5ae854ea3384a7ebf022c3ec816326d9fc5cbfd54473cab0",
+    "icon-512.png": "315330d1222aeee86df46ecdc0c123735ea61cbf821cd52be018341477d8953d",
+    "icon-maskable-512.png": "77f43cc3604c7ebb4845e1db9e3cacd9d958f51693473a4a4aa3afe465adb324",
+    "icon.svg": "793c4ef7e0e2d2072d8a9839c7b7f9d3b15939b2f896a4cce37d2e2e7000e310",
+    "index.html": "f53f9dba4f61aeae23cf57cf1f5ccf26055ddc10c2c30d52832066573b4d4b2d",
+    "manifest.webmanifest": "fead8644e6803d6cda1559aba19dea8ddd424150503a67edcf7d4890b58999bd",
+    "office-city.webp": "97186b98d64b3414d94173d839d4ca738b5e78d84c93fec40dd9b19fecaca77e",
+    "style.css": "37cae9cf05283bce884477d4fdc4ad694862686744cebec063f6f87f7ad16ccd",
+    "touch.js": "aa9192e64ad16ed39d896d6dcbea848d2e649089c87de22130e798d9d916d973"
+  }
+}
