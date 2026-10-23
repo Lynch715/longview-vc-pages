@@ -575,10 +575,10 @@ const fictionalProjects=Object.freeze([
 const scenarioProjects=Object.freeze([...historicalProjects,...fictionalProjects]);
 const limits=Object.freeze({portfolio:252+scenarioProjects.length,deals:7+Math.max(...scenarioProjects.map(p=>scenarioProjects.filter(x=>x.year===p.year).length)),market:279+scenarioProjects.length});
 function scenarioProject(c){return historicalProject(c)||fictionalProjects.find(p=>c?.scenarioProject===p.key&&c.id===p.year+'-P-'+p.key)||null;}
-function riskBrief(c){
+function riskBrief(c,asOfYear=Infinity){
  const p=scenarioProject(c),r=c.ventureRisk;if(!p||!r)return null;
  const warning=r.exposure>.7?'回款与持续开支压力偏高':r.exposure>.4?'需要留出回款和融资缓冲':'目前压力相对较轻，仍要看经营变化';
- return {days:r.collectionDays,burnRate:r.burnRate,annualBurn:c.revenue*r.burnRate,receivables:r.receivables,warning,events:r.events};
+ return {days:r.collectionDays,burnRate:r.burnRate,annualBurn:c.revenue*r.burnRate,receivables:r.receivables,warning,events:r.events.filter(e=>e.year<=asOfYear)};
 }
 function settleVentureRisk(c,year,shocks,support){
  const p=scenarioProject(c),r=c.ventureRisk;if(!p||!r)return null;

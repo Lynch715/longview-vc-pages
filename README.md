@@ -1,4 +1,4 @@
-# 远见资本 · v0.17.0
+# 远见资本 · v0.17.1
 
 [打开游戏](https://lynch715.github.io/longview-vc-pages/)
 
