@@ -140,3 +140,14 @@ footer {color:#53685a}
   .side-card {padding:20px 16px;margin-bottom:0}
   .team-budget {border-color:#bdcfe4}
 }
+
+/* Real-company opportunities share the existing business palette. */
+.historical-ticket{font-size:12px;line-height:1.7;color:var(--amber);margin:0 0 12px;overflow-wrap:anywhere}
+.historical-note{padding:14px 16px;margin:14px 0;border:1px solid var(--gold);border-radius:10px;background:var(--amber-soft);color:var(--ink)}
+.historical-note b{color:var(--amber)}
+.historical-note p{font-size:13px;line-height:1.8;margin:6px 0 0;overflow-wrap:anywhere}
+
+.venture-risk{margin:16px 0;padding:14px 16px;background:var(--blue-soft);border-left:3px solid var(--blue);overflow-wrap:anywhere}
+.venture-risk h4{margin:0 0 8px}.venture-risk p{font-size:13px;line-height:1.8;margin:8px 0}.venture-risk ul{padding-left:18px}.venture-risk li{margin:12px 0}
+
+.financing-terms{padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font-size:13px;line-height:1.8;overflow-wrap:anywhere}
