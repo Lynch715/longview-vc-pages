@@ -1,8 +1,8 @@
 {
   "version": "0.14.4",
   "files": {
-    "app.js": "40d68f6420cb16605301d4c21f03d9be58166271b9cee2b448b54e8add6146dd",
-    "desk.css": "9f5c29a03e15d3000f2d05ac2c9768b189dc13a8f080f0ae2798620cf7cec516",
+    "app.js": "46abdfff5faa8103d74700a42938f01276bfc78fb8fda7f62858c0d844fffe70",
+    "desk.css": "df00b1bd3080c0b177baa7c562003d58c22f91a6ba9333f123dbd4873b660870",
     "engine.js": "444e9953091009f0e44ec1dc9bc11bc61b092d77cf31cea6cf5c09a050e027e5",
     "favicon.ico": "54e8db7ace63f57654cdf26f9820244cbf69df6949eb3cae9c94c21d588b1cd5",
     "icon-192.png": "94775a585f1860e81e48128b5a3873cb0431d5fdf07f7003da365bd41305b321",
@@ -10,10 +10,10 @@
     "icon-512.png": "315330d1222aeee86df46ecdc0c123735ea61cbf821cd52be018341477d8953d",
     "icon-maskable-512.png": "77f43cc3604c7ebb4845e1db9e3cacd9d958f51693473a4a4aa3afe465adb324",
     "icon.svg": "793c4ef7e0e2d2072d8a9839c7b7f9d3b15939b2f896a4cce37d2e2e7000e310",
-    "index.html": "98517c80f283808fd7dc08f80710ca973c7e51b291bb1e53275868ada3d7b809",
+    "index.html": "a5ff0cac6c6fb7c1ba033ecf44fa16581ceccc14f8a2039a887897c77142ad48",
     "manifest.webmanifest": "fead8644e6803d6cda1559aba19dea8ddd424150503a67edcf7d4890b58999bd",
     "office-city.webp": "97186b98d64b3414d94173d839d4ca738b5e78d84c93fec40dd9b19fecaca77e",
-    "style.css": "37cae9cf05283bce884477d4fdc4ad694862686744cebec063f6f87f7ad16ccd",
+    "style.css": "1af16cf85063bfc132b2a8609f0348a150458cc75a156b8ba28a67480d65c45b",
     "touch.js": "60771110b1783dc36f0b26373ecb6b23f0a9dfb53691d8e7eccd03e4911b4ac8"
   }
 }
