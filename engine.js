@@ -624,6 +624,24 @@ function newDeals(s){
  }
  return deals;
 }
+function scaleNewDeal(s,c,i){
+ if(s.year<2000)return;
+ const ceiling=s.year<2009?3:s.year<2017?6:s.year<2026?12:s.year<2038?20:28;
+ // Independent deterministic selection: size must not consume the campaign RNG or imply quality.
+ const salt=(s.marketSeed??s.seed)+':project-size:'+s.year,slot=(i+hash(salt)%4)%4;
+ if(slot<2)return; // Keep two small opportunities alongside one growth and one larger business.
+ // Supply grows with the fund, so a shrinking fund is not surrounded by unaffordable giants.
+ const fundFactor=clamp(Math.sqrt(Math.max(0,nav(s))/25000),.05,2.5);
+ const variation=.85+hash(salt+':'+i)/4294967296*.3;
+ const wanted=1+(ceiling-1)*fundFactor*[0,0,.35,1][slot]*variation;
+ const m=s.markets?.[c.sector],owned=new Set(s.portfolio.filter(x=>x.status==='active').map(x=>x.id));
+ const available=m?m.unserved+m.members.filter(x=>!x.failed&&!x.acquiredBy&&!owned.has(x.id)).reduce((n,x)=>n+x.customers,0):0;
+ // Larger entrants take existing orders; never create customers or drain an entire industry on arrival.
+ const capacity=m?Math.max(c.revenue,Math.floor(Math.min(m.total*.06,available*.15))):c.revenue;
+ const revenue=Math.max(c.revenue,Math.min(Math.round(c.revenue*wanted),capacity)),factor=revenue/c.revenue;
+ c.revenue=revenue;c.team=Math.max(c.team,Math.round(c.team*Math.pow(factor,.85)));
+ c.growth=Math.max(5,Math.round(c.growth/Math.pow(factor,.25)));
+}
 function deal(s,i,used=usedCompanyNames(s),historical=null){
  const available=sectors.filter(x=>x.from<=s.year),sector=available[Math.floor(rng(s)*available.length)];
  const selected=historical?sectors.find(x=>x.name===historical.sector):sector;
@@ -631,6 +649,7 @@ function deal(s,i,used=usedCompanyNames(s),historical=null){
  const name=historical&&!historical.fictional?historical.name:companyName(s,selected.name,s.year+'-'+i,entropy,used);
  const c={id:historical?s.year+(historical.fictional?'-P-':'-H-')+historical.key:s.year+'-'+i,name,sector:selected.name,icon:selected.icon,desc:selected.desc,edge:selected.edge,risk:selected.risk,value:1,quality:.25+rng(s)*.7,volatility:.35+rng(s)*.45,revenue:Math.round(65+rng(s)*145),growth:Math.round(8+rng(s)*50),runway:Math.round(9+rng(s)*13),team:Math.round(6+rng(s)*20),dd:false,status:'available',age:0,invested:0,equity:0,round:null,proceeds:0,notes:[]};
  if(historical){Object.assign(c,{...(historical.fictional?{scenarioProject:historical.key}:{realProject:historical.key}),desc:historical.product,edge:historical.edge,risk:historical.risk,quality:.5+rng(s)*.38,volatility:.45+rng(s)*.3,revenue:Math.round(historical.revenue+rng(s)*historical.revenueRange),team:Math.round(historical.team+rng(s)*historical.teamRange),growth:Math.round(25+rng(s)*40)});const exposure=.05+rng(s)*.9;c.ventureRisk={version:1,exposure,collectionDays:Math.round(25+exposure*125),burnRate:.015+exposure*.07,receivables:0,events:[]};}
+ if(s.ruleset===12&&!historical)scaleNewDeal(s,c,i);
  if(s.ruleset===12){c.economyVersion=12;c.expansionStreak=0;}financials(c,s.year);if(historical){if(historical.deliveryEfficiencyRange)c.costRate=Math.max(.12,c.costRate-.04-rng(s)*historical.deliveryEfficiencyRange);c.cash+=c.revenue*(.1+rng(s)*.9);Object.assign(c.financialHistory[0],{cash:c.cash,cashOpening:c.cash});}acquisitionFields(c);financeFields(c);workoutFields(c);c.liquidation=null;divestFields(c);rebuildFields(c);dividendFields(c);c.competition=.2+rng(s)*.6;const k=costs(c,c.revenue);c.costs=k.total;c.profit=c.revenue-c.costs;c.cashFlow=c.profit-c.capex;c.profitYears=c.profit>0?1:0;runway(c);
  const priceNoise=.9+rng(s)*.3,askingPremium=historical?.6+rng(s)*1.25:s.ruleset===12?1.8+c.growth*.02+c.quality*.8+(era(s.year).hot.includes(c.sector)?.4:0):1;c.value=Math.max(historical?historical.minimumValue:0,Math.round(historical?Math.max(0,fundamental(c,era(s.year))-c.cash)*priceNoise*askingPremium+c.cash:fundamental(c,era(s.year))*priceNoise*askingPremium));Object.assign(c.financialHistory[0],k,{costs:c.costs,profit:c.profit,cashFlow:c.cashFlow,competition:c.competition,value:c.value});if(s.markets)registerMarket(s,c);return c;
 }
