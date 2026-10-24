@@ -1,7 +1,9 @@
 {
-  "version": "0.17.1",
+  "version": "0.18.0",
   "files": {
-    "app.js": "b2612d38383a25a36e1d11271c8ddd907b73417f7c8fa1dcea8b274890458fd6",
+    "app.js": "3f29909eca70f9c892cf9b816487ace431fdf19ac7ffae0dc5c5851ae080ae66",
+    "art/industries.webp": "95758f41e7526755b0044c25d69e4a44e2188e9c6b4a016aee2fe44a615e32a3",
+    "art/office-harbor.webp": "ef557a9782c8daaa7758c9dc73e253224264fd57c2237e6457e11b2a62f952a3",
     "desk.css": "df00b1bd3080c0b177baa7c562003d58c22f91a6ba9333f123dbd4873b660870",
     "engine.js": "9c4daf6d9eed865cb978d5b085bfc53c3ad5d34635714cebd82ef99a4b41bd83",
     "favicon.ico": "54e8db7ace63f57654cdf26f9820244cbf69df6949eb3cae9c94c21d588b1cd5",
@@ -10,9 +12,10 @@
     "icon-512.png": "315330d1222aeee86df46ecdc0c123735ea61cbf821cd52be018341477d8953d",
     "icon-maskable-512.png": "77f43cc3604c7ebb4845e1db9e3cacd9d958f51693473a4a4aa3afe465adb324",
     "icon.svg": "793c4ef7e0e2d2072d8a9839c7b7f9d3b15939b2f896a4cce37d2e2e7000e310",
-    "index.html": "1f152d8719bb693062afad7546e4f9da7edaa2465637955dda14ce0b47393956",
+    "index.html": "310c9ea89cf402392d278a35cae408ca99078525ecdb2103a71a34f9f1e12a62",
     "manifest.webmanifest": "fead8644e6803d6cda1559aba19dea8ddd424150503a67edcf7d4890b58999bd",
     "office-city.webp": "97186b98d64b3414d94173d839d4ca738b5e78d84c93fec40dd9b19fecaca77e",
+    "office.css": "4eadf8a9b49791ee8180c78cb46cdc856b3346906c1287036b056c66ba85fa77",
     "palette.css": "dc648e8e7a43d8b7161eea374da28aa4361ed9ee26509d687b4c7a0064c7c238",
     "style.css": "1af16cf85063bfc132b2a8609f0348a150458cc75a156b8ba28a67480d65c45b",
     "touch.js": "60771110b1783dc36f0b26373ecb6b23f0a9dfb53691d8e7eccd03e4911b4ac8"
