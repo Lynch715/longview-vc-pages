@@ -12,7 +12,7 @@ const sectors=[
  {name:'人工智能',from:2016,icon:'AI',desc:'用算法替企业处理文档、客服和生产业务',edge:'生产效率',risk:'算力成本与竞争'}
 ];
 // The first horizon remains unchanged until the player explicitly continues.
-function endYear(s){return s.continuation?2050:2026;}
+function endYear(s){return isContinuous(s)||s.continuation?2050:2026;}
 const futureEras=[
  {from:2027,to:2029,name:'智能化落地',headline:'试点结束，客户开始算投入产出。',text:'企业采购开始要求交付与回款。智能软件、工业自动化和诊断工具争取长期合同，试用热度逐渐让位于真实订单。',hot:['人工智能','企业软件','生物科技'],m:1.08,exit:.16},
  {from:2030,to:2032,name:'扩张与拥挤',headline:'同一张订单，桌上摆着更多报价。',text:'设备和算力项目加快扩产，融资估值走高。客户选择变多，降价、营销和设备投入也开始挤压现金。',hot:['人工智能','精密制造','通信设备'],m:1.2,exit:.19},
@@ -132,7 +132,7 @@ function workout(s,id,mode,amount=null){
  if(mode==='convert')for(const l of c.loans){l.convertedPrincipal=(l.convertedPrincipal||0)+l.balance;l.balance=0;l.due=0;l.remaining=0;}
  if(mode==='rescue'){s.cash=Math.max(0,s.cash-q.raise);s.invested+=q.raise;c.invested+=q.raise;c.cash+=q.raise-q.fee;c.pendingRescueEquity+=q.raise;c.pendingRescuePrincipal+=payPrincipal(c);c.rescueYear=s.year;}
  else{c.workoutYear=s.year;c.pendingNoncashFee+=q.fee;}
- c.pendingWorkoutFee+=q.fee;c.pendingDebtConversion+=q.converted;c.equity=q.afterEquity;c.round=null;
+ c.pendingWorkoutFee+=q.fee;c.pendingDebtConversion+=q.converted;if(c.capital?.public){adjustLocks(c,mode==='rescue'?q.pre/(q.pre+q.raise):c.equity?q.afterEquity/c.equity:1);if(mode==='rescue')addPublicLock(c,q.raise/(q.pre+q.raise),Math.min(2050,s.year+1));}c.equity=q.afterEquity;c.round=null;
  if(q.resolves)c.distress=null;
  c.value=fundamental(c,era(s.year))*(c.integration?.9:1)*(c.distress?.5:1);runway(c);
  const entry={year:s.year,mode,fee:q.fee,raise:q.raise,converted:q.converted,principal:q.principal,debtBefore:q.debt,debtAfter:debtBalance(c),equityBefore:q.equity,equityAfter:c.equity,cashBefore:q.cash,cashAfter:c.cash,fundBefore,fundAfter:s.cash,resolved:!c.distress,changes:q.changes};c.workouts.push(entry);
@@ -172,7 +172,7 @@ function distribute(s,id,payout=.5,repay=0){
 }
 function validDividends(c,year,deadline=2026){
  const near=(a,b)=>Math.abs(a-b)<1e-6*Math.max(1,Math.abs(a),Math.abs(b));
- if(!Array.isArray(c.dividends)||c.dividends.length>36||!['dividendReceived','pendingDividend','pendingAllocationPrincipal'].every(k=>Number.isFinite(c[k])&&c[k]>=0)||!(c.dividendYear===null||Number.isInteger(c.dividendYear)&&c.dividendYear>=1990&&c.dividendYear<=year))return false;
+ if(!Array.isArray(c.dividends)||c.dividends.length>(c.capital?60:36)||!['dividendReceived','pendingDividend','pendingAllocationPrincipal'].every(k=>Number.isFinite(c[k])&&c[k]>=0)||!(c.dividendYear===null||Number.isInteger(c.dividendYear)&&c.dividendYear>=1990&&c.dividendYear<=year))return false;
  let prev=1989;for(const a of c.dividends){
   if(!a||!Number.isInteger(a.year)||a.year<=prev||a.year>Math.min(year,deadline-1)||!allocationRates.includes(a.payout)||!allocationRates.includes(a.repay)||a.payout+a.repay>1||!['stableCash','operatingReserve','service','contingency','reserve','pool','dividend','principal','retained','equity','fundProceeds','otherProceeds','cashBefore','cashAfter','debtBefore','debtAfter','valueBefore','valueAfter'].every(k=>Number.isFinite(a[k])&&a[k]>=0)||!Number.isFinite(a.earnings)||!(a.repaymentOnly===undefined||typeof a.repaymentOnly==='boolean')||a.repaymentOnly&&(a.payout!==0||a.repay<=0)||!a.repaymentOnly&&a.earnings<0||a.integrationReserve!==undefined&&(!Number.isFinite(a.integrationReserve)||a.integrationReserve<0)||a.equity>1||!Array.isArray(a.payments)||a.payments.length>18)return false;
   if(!near(a.reserve,a.operatingReserve+a.service+a.contingency+(a.integrationReserve||0))||!near(a.pool,Math.max(0,a.repaymentOnly?a.cashBefore-a.reserve:Math.min(a.earnings,a.stableCash,a.cashBefore-a.reserve)))||!near(a.dividend,a.pool*a.payout)||!near(a.principal,Math.min(a.debtBefore,a.pool*a.repay))||!near(a.pool,a.dividend+a.principal+a.retained)||!near(a.fundProceeds,a.dividend*a.equity)||!near(a.dividend,a.fundProceeds+a.otherProceeds)||!near(a.cashBefore,a.cashAfter+a.dividend+a.principal)||!near(a.debtBefore,a.debtAfter+a.principal)||!near(a.valueAfter,Math.max(0,a.valueBefore-a.dividend))||!a.payments.every(x=>x&&typeof x.id==='string'&&c.loans.some(l=>l.id===x.id)&&Number.isFinite(x.paid)&&x.paid>=0)||!near(a.principal,a.payments.reduce((n,x)=>n+x.paid,0)))return false;
@@ -272,7 +272,7 @@ function divest(s,id,mode='assets',fraction=.2,buyerId=null,repay=true){
  c.notes.push(`${s.year} 年 ${text}`);log(s,text,'warning');syncMarket(s,c);record(s);return true;
 }
 function validDivest(c,year,deadline=2026){
- const positive=['pendingDivestPrice','pendingDivestFee','pendingDivestPrincipal','pendingDivestRevenue'];if(!positive.every(k=>Number.isFinite(c[k])&&c[k]>=0)||!['assetRetention','businessRetention','equipmentRetention','overheadRetention'].every(k=>Number.isFinite(c[k])&&c[k]>=0&&c[k]<=1)||c.assetRetention<.6-1e-7||c.businessRetention<.5-1e-7||c.pendingDivestFee>c.pendingDivestPrice+1e-7||!Array.isArray(c.divestments)||c.divestments.length>36)return false;
+ const positive=['pendingDivestPrice','pendingDivestFee','pendingDivestPrincipal','pendingDivestRevenue'];if(!positive.every(k=>Number.isFinite(c[k])&&c[k]>=0)||!['assetRetention','businessRetention','equipmentRetention','overheadRetention'].every(k=>Number.isFinite(c[k])&&c[k]>=0&&c[k]<=1)||c.assetRetention<.6-1e-7||c.businessRetention<.5-1e-7||c.pendingDivestFee>c.pendingDivestPrice+1e-7||!Array.isArray(c.divestments)||c.divestments.length>(c.capital?60:36))return false;
  if(c.divestYear!==null&&(!Number.isInteger(c.divestYear)||c.divestYear>year||c.divestYear<1990))return false;
  const near=(x,y)=>Math.abs(x-y)<1e-6*Math.max(1,Math.abs(x));let ar=1,br=1,er=1,oh=1,prev=1989;
  for(const a of c.divestments){if(!a||!Number.isInteger(a.year)||a.year<=prev||a.year>Math.min(year,deadline-1)||!['assets','business'].includes(a.mode)||![.1,.2,.3].includes(a.fraction)||typeof a.repay!=='boolean'||!['price','fee','net','principal','mandatory','debtBefore','debtAfter','customers','transferred','released','employees','revenueSold','revenueAfter','costBefore','costAfter','operatingProfitAfter','assetBefore','assetAfter','businessBefore','businessAfter','overheadAfter'].every(k=>Number.isFinite(a[k]))||!['price','fee','net','principal','mandatory','debtBefore','debtAfter','customers','transferred','released','employees','revenueSold','revenueAfter'].every(k=>a[k]>=0)||!Number.isFinite(a.cashBefore)||!Number.isFinite(a.cashAfter)||!Array.isArray(a.payments)||a.payments.length>18)return false;
@@ -339,7 +339,7 @@ function validLiquidation(c,year){
  if(!a.creditors.every(x=>x&&typeof x.id==='string'&&typeof x.name==='string'&&['claim','paid','unpaid'].every(k=>Number.isFinite(x[k])&&x[k]>=0)&&near(x.claim,x.paid+x.unpaid))||new Set(a.creditors.map(x=>x.id)).size!==a.creditors.length)return false;
  if(!a.assets.every(x=>x&&typeof x.name==='string'&&['basis','discount','proceeds'].every(k=>Number.isFinite(x[k])&&x[k]>=0)&&x.discount<=1&&near(x.proceeds,x.basis*x.discount)))return false;
  if(a.mode==='business'?(typeof a.buyerId!=='string'||typeof a.buyerName!=='string'||a.transferred!==Math.floor(a.customers*.85)):(a.buyerId!==null||a.buyerName!==null||a.transferred!==0||!near(a.price,a.assets.reduce((n,x)=>n+x.proceeds,0))))return false;
- return near(a.grossPool,a.cashAvailable+a.price)&&near(a.fees,Math.min(a.grossPool,Math.max(2,a.price*(a.mode==='assets'?.08:.05))))&&near(a.claims,a.loanClaims+a.operatingClaims)&&near(a.creditorPaid,Math.min(a.grossPool-a.fees,a.claims))&&near(a.grossPool,a.fees+a.creditorPaid+a.equityResidual)&&near(a.claims,a.creditorPaid+a.unpaid)&&near(a.equityResidual,a.fundProceeds+a.otherEquity)&&near(a.fundProceeds,a.equityResidual*a.equity)&&near(c.equity,a.equity)&&near(c.proceeds,a.fundProceeds)&&a.customers===a.transferred+a.released&&near(a.creditors.reduce((n,x)=>n+x.claim,0),a.claims)&&near(a.creditors.reduce((n,x)=>n+x.paid,0),a.creditorPaid)&&a.creditors.every(x=>near(x.paid,a.claims?x.claim*a.creditorPaid/a.claims:0))&&debtBalance(c)===0;
+ return near(a.grossPool,a.cashAvailable+a.price)&&near(a.fees,Math.min(a.grossPool,Math.max(2,a.price*(a.mode==='assets'?.08:.05))))&&near(a.claims,a.loanClaims+a.operatingClaims)&&near(a.creditorPaid,Math.min(a.grossPool-a.fees,a.claims))&&near(a.grossPool,a.fees+a.creditorPaid+a.equityResidual)&&near(a.claims,a.creditorPaid+a.unpaid)&&near(a.equityResidual,a.fundProceeds+a.otherEquity)&&near(a.fundProceeds,a.equityResidual*a.equity)&&near(c.equity,a.equity)&&near(c.proceeds,a.fundProceeds+(c.capital?.trades||[]).reduce((n,t)=>n+t.proceeds,0))&&a.customers===a.transferred+a.released&&near(a.creditors.reduce((n,x)=>n+x.claim,0),a.claims)&&near(a.creditors.reduce((n,x)=>n+x.paid,0),a.creditorPaid)&&a.creditors.every(x=>near(x.paid,a.claims?x.claim*a.creditorPaid/a.claims:0))&&debtBalance(c)===0;
 }
 
 // Interest is an expense; principal is a separate cash movement and reduces the liability.
@@ -362,14 +362,14 @@ function strategyOutlook(c,strategy=c.strategy){
 function diligenceReport(c){
  if(!c.dd)return null;const precision=[.18,.12,.07,.03][Math.max(0,c.ddLevel)],low=Math.max(0,c.quality-precision),high=Math.min(1,c.quality+precision),base=strategyOutlook(c,'balanced'),expand=strategyOutlook(c,'expand');
  const stressed=revenue=>{const trial={...c,team:plannedTeam(c,revenue,'balanced'),strategy:'balanced'};return revenue-costs(trial,revenue,0,0,c.team).total-revenue*profiles[c.sector].capex;};
- return {referenceValue:fundamental(c,era(c.financialHistory[0]?.year??1990)),qualityLow:low,qualityHigh:high,base,expand,stressCashFlow:stressed(c.revenue*.8),deliveryLow:c.revenue/Math.max(1,c.team*(11+high*9)*effectiveCapacity(c)),deliveryHigh:c.revenue/Math.max(1,c.team*(11+low*9)*effectiveCapacity(c)),askingRevenue:c.value/Math.max(1,c.revenue),retentionLow:.7+low*.18,retentionHigh:.7+high*.18};
+ return {referenceValue:fundamental(c,era((c.capital?c.financialHistory.at(-1)?.year:c.financialHistory[0]?.year)??1990)),qualityLow:low,qualityHigh:high,base,expand,stressCashFlow:stressed(c.revenue*.8),deliveryLow:c.revenue/Math.max(1,c.team*(11+high*9)*effectiveCapacity(c)),deliveryHigh:c.revenue/Math.max(1,c.team*(11+low*9)*effectiveCapacity(c)),askingRevenue:c.value/Math.max(1,c.revenue),retentionLow:.7+low*.18,retentionHigh:.7+high*.18};
 }
-function investmentOutlook(s,id,amount){
+function investmentOutlook(s,id,amount,mode="financial"){
  const c=s.deals.find(c=>c.id===id);if(!c)return null;const terms=investmentTerms(c,s);if(!terms.amounts.includes(amount))return null;
  const follow=s.portfolio.filter(x=>x.status==='active'&&x.round).reduce((n,x)=>n+x.round.cost,0),reserve=10+payroll(s)+follow;
- const equity=amount/(c.value+amount),p=scenarioProject(c),large=!!terms.scaled&&amount>200,shortfall=Math.max(0,reserve-s.cash+amount);
- const reason=s.ended?'基金已结束':c.status!=='available'?'这笔机会已不在融资中':p&&s.year!==p.year?'本次融资窗口已经结束':equity>terms.maxEquity+1e-8?'超过本项目本轮持股上限':s.cash<amount?'基金现金不足':large&&shortfall>1e-7?'大额认购后不足以覆盖已知跟投与下期运营储备':'';
- return {ok:!reason,reason,cashAfter:s.cash-amount,reserve,follow,equity,cashShare:amount/Math.max(1,s.cash),fundShare:amount/Math.max(1,nav(s)),shortfall,large};
+ const equity=amount/(c.value+(c.capital?c.capital.roundTarget:amount)),p=scenarioProject(c),large=!!terms.scaled&&amount>200,resource=c.capital&&mode==='strategic'?resourceQuote(s,c,amount):null,fee=resource?.fee||0,shortfall=Math.max(0,reserve-s.cash+amount+fee);
+ const reason=!['financial','strategic'].includes(mode)?'请选择财务投资或产业协同':resource&&!resource.ok?resource.reason:s.ended?'基金已结束':c.status!=='available'?'这笔机会已不在融资中':p&&s.year!==p.year?'本次融资窗口已经结束':equity>terms.maxEquity+1e-8?'超过本项目本轮持股上限':s.cash<amount+fee?'基金现金不足':large&&shortfall>1e-7?'大额认购后不足以覆盖已知跟投与下期运营储备':'';
+ return {ok:!reason,reason,cashAfter:s.cash-amount-fee,reserve,follow,equity,cashShare:(amount+fee)/Math.max(1,s.cash),fundShare:amount/Math.max(1,nav(s)),shortfall,large,resource,mode};
 }
 
 // Shared industry customer pools. Market RNG is separate from fund RNG and iteration order.
@@ -403,7 +403,7 @@ function registerMarket(s,c){
  const m=ensureMarket(s,c.sector);if(m.members.some(x=>x.id===c.id))return;
  // Preserve historical revenue; initial clients transfer from the unserved pool or existing suppliers.
  const owned=new Set(s.portfolio.filter(x=>x.status==='active').map(x=>x.id));let donors=m.members.filter(x=>!x.failed&&!x.acquiredBy&&!owned.has(x.id));if(!donors.length||s.ruleset===12&&m.unserved+donors.reduce((n,x)=>n+x.customers,0)<1)donors=m.members.filter(x=>!x.failed&&!x.acquiredBy);const available=m.unserved+donors.reduce((n,x)=>n+x.customers,0);
- const customers=Math.min(Math.max(1,Math.round(c.revenue)),Math.max(1,available));
+ const customers=Math.min(Math.max(1,Math.round(c.revenue)),isContinuous(s)?Math.max(1,Math.floor(m.total*.08)):Infinity,Math.max(1,available));
  const reserve=Math.min(m.unserved,customers);m.unserved-=reserve;
  const transfers=allocate(customers-reserve,donors,x=>x.customers);for(const d of donors)d.customers-=transfers[d.id]||0;
  m.members.push(marketMember(c,customers,c.revenue/customers/m.priceIndex));c.market={year:s.year,opening:true,customers,unitPrice:c.revenue/customers,total:m.total,share:customers/m.total,delta:0,won:0,lost:0,newDemand:0,contraction:0,from:[],to:[],pressure:c.competition,exitSignal:1,rank:0};
@@ -430,16 +430,16 @@ function compete(s,e,supported=new Set(),opsLevel=0){
    const operatingStrain=modern(x)?clamp(deliveryLoad(x)-1,0,2)*.06+Math.max(0,(x.expansionStreak||0)-2)*.008:0;
    const remaining=x.customers-(contraction[x.id]||0),churn=clamp((modern(x)?.30-x.quality*.18:.24-x.quality*.09)+operatingStrain-support*.012+(x.cash<0?.08:0)+(x.integrationDrag||0)*.2+capacityLoss(x)*.08,.1,.35+capacityLoss(x)*.08);
    release[x.id]=Math.round(remaining*churn);retained[x.id]=remaining-release[x.id];
-   strength[x.id]=Math.pow(Math.max(1,x.customers),.9)*(.35+x.quality+x.product+(x.technologyBonus||0))*(1-(x.integrationDrag||0))*(1-capacityLoss(x)*.5)*(1+Math.max(0,effectiveCapacity(x)-1)*.3)*(1+(x.marketReach||0))*Math.sqrt(st.marketing)*(1+support*.08)/Math.pow(Math.max(.2,x.unitPrice/m.priceIndex),1.4)*(x.cash<0?.65:1)*( .94+marketRandom(s,x.id+':sales:'+s.year)*.12);
+   strength[x.id]=Math.pow(Math.max(1,x.customers),.9)*(.35+x.quality+x.product+(x.technologyBonus||0))*(1-(x.integrationDrag||0))*(1-capacityLoss(x)*.5)*(1+Math.max(0,effectiveCapacity(x)-1)*.3)*(1+(x.marketReach||0)+(owned.get(x.id)?.capital?.resource?.boost||0))*Math.sqrt(st.marketing)*(1+support*.08)/Math.pow(Math.max(.2,isContinuous(s)?x.unitPrice/(x.basePrice*m.priceIndex):x.unitPrice/m.priceIndex),1.4)*(x.cash<0?.65:1)*( .94+marketRandom(s,x.id+':sales:'+s.year)*.12);
    flows[x.id]={year:s.year,opening:false,customers:0,unitPrice:x.unitPrice,total:m.total,share:0,delta:0,won:0,lost:0,newDemand:0,contraction:contraction[x.id]||0,from:[],to:[],pressure:0,exitSignal:1,rank:0,oldCustomers:x.customers,retained:retained[x.id]};
   }
   const free=oldUnserved-(contraction.unserved||0)+Math.max(0,change);
-  const mature=s.continuation&&s.ruleset===12;
+  const mature=matureMarket(s)&&s.ruleset===12;
   const capacity=Object.fromEntries(members.map(x=>[x.id,Math.max(1,Math.ceil(x.customers*((x.strategy==='expand'?.6:x.strategy==='defend'?(mature?.3:.2):(mature?.45:.35))+(supported.has(x.id)?opsLevel*.03:0))))]));
-  const incoming=s.continuation?allocateCapped(free,members,x=>strength[x.id],x=>capacity[x.id]):null,newClients=incoming?incoming.out:allocate(free,members,x=>strength[x.id]);
+  const incoming=matureMarket(s)?allocateCapped(free,members,x=>strength[x.id],x=>capacity[x.id]):null,newClients=incoming?incoming.out:allocate(free,members,x=>strength[x.id]);
   if(incoming)for(const x of members)capacity[x.id]-=newClients[x.id];
   // Route every switching cohort to a named destination; customers choosing the same supplier are renewals.
-  for(const donor of members){const capped=s.continuation?allocateCapped(release[donor.id],members,x=>strength[x.id],x=>x.id===donor.id?release[donor.id]:capacity[x.id]):null,destinations=capped?capped.out:allocate(release[donor.id],members,x=>strength[x.id]);if(capped)retained[donor.id]+=capped.remaining;for(const receiver of members){const n=destinations[receiver.id];if(!n)continue;if(receiver.id===donor.id){retained[donor.id]+=n;continue;}if(capped)capacity[receiver.id]-=n;flows[donor.id].lost+=n;flows[donor.id].to.push({id:receiver.id,name:receiver.name,count:n});flows[receiver.id].won+=n;flows[receiver.id].from.push({id:donor.id,name:donor.name,count:n});}}
+  for(const donor of members){const capped=matureMarket(s)?allocateCapped(release[donor.id],members,x=>strength[x.id],x=>x.id===donor.id?release[donor.id]:capacity[x.id]):null,destinations=capped?capped.out:allocate(release[donor.id],members,x=>strength[x.id]);if(capped)retained[donor.id]+=capped.remaining;for(const receiver of members){const n=destinations[receiver.id];if(!n)continue;if(receiver.id===donor.id){retained[donor.id]+=n;continue;}if(capped)capacity[receiver.id]-=n;flows[donor.id].lost+=n;flows[donor.id].to.push({id:receiver.id,name:receiver.name,count:n});flows[receiver.id].won+=n;flows[receiver.id].from.push({id:donor.id,name:donor.name,count:n});}}
   m.unserved=members.length?(incoming?.remaining||0):m.total;
   for(const x of members){const f=flows[x.id];f.newDemand=newClients[x.id];f.retained=retained[x.id];f.customers=retained[x.id]+f.won+f.newDemand;f.share=f.customers/m.total;f.delta=f.share-x.customers/oldTotal;x.customers=f.customers;}
   const ranked=[...members].sort((a,b)=>b.customers-a.customers||a.id.localeCompare(b.id));
@@ -477,13 +477,13 @@ function acquisitionQuote(s,buyerId,targetId,mode="cash"){
  const reason=s.ended?'基金已结束':s.year>endYear(s)-2?`${endYear(s)-1} 年起不再办新并购，要留够两年做整合`:currentRebuild(c)?'现有建设项目还没结束，暂不办新并购':c.distress?'先把到期的债处理好':c.workoutYear===s.year||c.rescueYear===s.year||c.divestYear===s.year?'今年刚办过救助或出售，先把手里的生意稳住':c.integration?'上一笔并购还没整合完':debtDue(c)>1e-7?'还有到期本金没还，不能再办并购':mode==='debt'&&loan>capacity+1e-7?'银行不肯贷这么多，企业还得多拿一些自有资金':mode==='equity'&&equityRaise>preMoney*.8?'募集金额超过投前估值的 80%，这轮投资人不接':mode==='equity'&&equityRaise>0&&c.quality<.4?'这份经营成绩还说服不了外部投资人':remaining+1e-7<reserve?'付完收购款，就不够留给后面的整合了':'';
  return {ok:!reason,reason,buyerId,targetId,targetName:t.name,mode,loan,equityRaise,rate,term,annualService,capacity,preMoney,equityBefore:c.equity,equityAfter,price,fee,due,planned,worst,reserve,required:due+reserve,cash:c.cash,remaining,customers:t.customers,share:(b.customers+t.customers)/m.total,risk,employees:t.team,targetRevenue:t.revenue};
 }
-function acquisitionTargets(s,id){const c=s.portfolio.find(x=>x.id===id);if(!c)return [];return s.markets[c.sector].members.filter(x=>x.id!==id&&!x.failed&&!x.acquiredBy&&x.customers>0&&!s.portfolio.some(p=>p.id===x.id&&p.status==='active')).map(x=>acquisitionQuote(s,id,x.id)).sort((a,b)=>a.due-b.due||a.targetId.localeCompare(b.targetId));}
+function acquisitionTargets(s,id){const c=s.portfolio.find(x=>x.id===id&&x.status==='active');if(!c)return [];return s.markets[c.sector].members.filter(x=>x.id!==id&&!x.failed&&!x.acquiredBy&&x.customers>0&&!s.portfolio.some(p=>p.id===x.id&&p.status==='active')).map(x=>acquisitionQuote(s,id,x.id)).sort((a,b)=>a.due-b.due||a.targetId.localeCompare(b.targetId));}
 function acquire(s,buyerId,targetId,mode="cash"){
  const q=acquisitionQuote(s,buyerId,targetId,mode);if(!q.ok)return false;
  const c=s.portfolio.find(x=>x.id===buyerId),m=s.markets[c.sector],b=m.members.find(x=>x.id===buyerId),t=m.members.find(x=>x.id===targetId),before=b.customers;
  const transaction={targetId,targetName:t.name,year:s.year,price:q.price,fee:q.fee,customers:q.customers,employees:t.team,risk:q.risk,planned:q.planned,worst:q.worst,spent:0,lost:0,stage:0,status:'整合中',events:[],cashBefore:c.cash,cashAfter:q.remaining,financingMode:mode,loan:q.loan,equityRaise:q.equityRaise,equityBefore:c.equity,equityAfter:q.equityAfter,rate:q.rate,term:q.term};
  if(q.loan){c.loans.push({id:buyerId+':'+s.year+':'+c.acquisitions.length,targetName:t.name,original:q.loan,balance:q.loan,paidPrincipal:0,rate:q.rate,term:q.term,remaining:q.term,originYear:s.year,due:0,defaulted:false});c.pendingLoanDrawdown+=q.loan;}
- if(q.equityRaise){c.equity=q.equityAfter;if(c.round)c.round.oldEquity*=q.preMoney/(q.preMoney+q.equityRaise);c.pendingEquityRaise+=q.equityRaise;}
+ if(q.equityRaise){adjustLocks(c,c.equity?q.equityAfter/c.equity:1);c.equity=q.equityAfter;if(c.round)c.round.oldEquity*=q.preMoney/(q.preMoney+q.equityRaise);c.pendingEquityRaise+=q.equityRaise;}
  c.cash+=q.loan+q.equityRaise-q.due;c.pendingAcquisitionPrice+=q.price;c.pendingAcquisitionFee+=q.fee;c.acquisitionBaseRevenue+=t.revenue;
  c.team=Math.min(10000,c.team+t.team);c.acquisitions.push(transaction);c.integration={targetId,remaining:2,cohort:q.customers};
  // Operating assets and employees transfer. Target cash remains with its sellers; there is no duplicate cash windfall.
@@ -605,6 +605,10 @@ function validVentureRisk(c,year){
 }
 
 function investmentTerms(c,s){
+ if(c.capital){const p=scenarioProject(c),spec=fundingStages[c.capital.stage],amounts=[...(p?.amounts||spec.tickets)],limit=s?Math.floor(Math.min(nav(s)*.2,c.value*.5,c.capital.roundTarget)/50)*50:0;
+  if(limit>200)for(const f of [.25,.5,1]){const n=Math.floor(limit*f/50)*50;if(n>200&&!amounts.includes(n))amounts.push(n);}
+  return {amounts:amounts.filter(n=>n<=c.capital.roundTarget).sort((a,b)=>a-b),minimum:amounts[0],maxEquity:p?.maxEquity||.35,scaled:!!s&&s.ruleset===12,largeLimit:limit,roundTarget:c.capital.roundTarget,stage:c.capital.stage};
+ }
  const p=scenarioProject(c);if(p)return {amounts:[...p.amounts],minimum:p.amounts[0],maxEquity:p.maxEquity};
  const amounts=[50,100,200];if(!s||s.ruleset!==12)return {amounts,minimum:50,maxEquity:1};
  // Only new subscriptions change. Quotes never mutate projects, saved accounts or RNG.
@@ -651,13 +655,160 @@ function deal(s,i,used=usedCompanyNames(s),historical=null){
  const c={id:historical?s.year+(historical.fictional?'-P-':'-H-')+historical.key:s.year+'-'+i,name,sector:selected.name,icon:selected.icon,desc:selected.desc,edge:selected.edge,risk:selected.risk,value:1,quality:.25+rng(s)*.7,volatility:.35+rng(s)*.45,revenue:Math.round(65+rng(s)*145),growth:Math.round(8+rng(s)*50),runway:Math.round(9+rng(s)*13),team:Math.round(6+rng(s)*20),dd:false,status:'available',age:0,invested:0,equity:0,round:null,proceeds:0,notes:[]};
  if(historical){Object.assign(c,{...(historical.fictional?{scenarioProject:historical.key}:{realProject:historical.key}),desc:historical.product,edge:historical.edge,risk:historical.risk,quality:.5+rng(s)*.38,volatility:.45+rng(s)*.3,revenue:Math.round(historical.revenue+rng(s)*historical.revenueRange),team:Math.round(historical.team+rng(s)*historical.teamRange),growth:Math.round(25+rng(s)*40)});const exposure=.05+rng(s)*.9;c.ventureRisk={version:1,exposure,collectionDays:Math.round(25+exposure*125),burnRate:.015+exposure*.07,receivables:0,events:[]};}
  if(s.ruleset===12&&!historical)scaleNewDeal(s,c,i);
+ if(isContinuous(s))capitalFields(s,c,i,historical);
  if(s.ruleset===12){c.economyVersion=12;c.expansionStreak=0;}financials(c,s.year);if(historical){if(historical.deliveryEfficiencyRange)c.costRate=Math.max(.12,c.costRate-.04-rng(s)*historical.deliveryEfficiencyRange);c.cash+=c.revenue*(.1+rng(s)*.9);Object.assign(c.financialHistory[0],{cash:c.cash,cashOpening:c.cash});}acquisitionFields(c);financeFields(c);workoutFields(c);c.liquidation=null;divestFields(c);rebuildFields(c);dividendFields(c);c.competition=.2+rng(s)*.6;const k=costs(c,c.revenue);c.costs=k.total;c.profit=c.revenue-c.costs;c.cashFlow=c.profit-c.capex;c.profitYears=c.profit>0?1:0;runway(c);
  // Mature-market entry prices reflect slower growth; saved offers and the first act are never repriced.
- const continuationDiscount=s.continuation&&s.ruleset===12?.75:1;
- const priceNoise=.9+rng(s)*.3,askingPremium=historical?.6+rng(s)*1.25:s.ruleset===12?1.8+c.growth*.02+c.quality*.8+(era(s.year).hot.includes(c.sector)?.4:0):1;c.value=Math.max(historical?historical.minimumValue:0,Math.round(historical?Math.max(0,fundamental(c,era(s.year))-c.cash)*priceNoise*askingPremium+c.cash:fundamental(c,era(s.year))*priceNoise*askingPremium*continuationDiscount));Object.assign(c.financialHistory[0],k,{costs:c.costs,profit:c.profit,cashFlow:c.cashFlow,competition:c.competition,value:c.value});if(s.markets)registerMarket(s,c);return c;
+ const continuationDiscount=matureMarket(s)&&s.ruleset===12?.75:1;
+ const priceNoise=.9+rng(s)*.3,askingPremium=historical?.6+rng(s)*1.25:s.ruleset===12?1.8+c.growth*.02+c.quality*.8+(era(s.year).hot.includes(c.sector)?.4:0):1;c.value=Math.max(historical?historical.minimumValue:0,Math.round(historical?Math.max(0,fundamental(c,era(s.year))-c.cash)*priceNoise*askingPremium+c.cash:fundamental(c,era(s.year))*priceNoise*askingPremium*continuationDiscount));Object.assign(c.financialHistory[0],k,{costs:c.costs,profit:c.profit,cashFlow:c.cashFlow,competition:c.competition,value:c.value});if(isContinuous(s))finishCapitalOffer(s,c);if(s.markets)registerMarket(s,c);return c;
 }
 function sourceDeals(s){if(s.ended)return;const wanted=level(s,'research');while(s.extraDeals<wanted){const i=4+s.extraDeals++;s.deals.push(deal(s,i));log(s,`行业研究员发现额外项目：${s.deals.at(-1).name}。`);}record(s);}
-function fresh(seed=Date.now()>>>0,ruleset=12){if(![11,12].includes(ruleset))throw Error('Unknown economic rules');const s={version:10,...(ruleset===12?{ruleset:12}:{}),dividends:0,seed:seed>>>0,year:1990,initial:1000,cash:1000,invested:0,returned:0,expenses:0,expenseBreakdown:{legacy:0,research:0,operations:0,payroll:0,recruiting:0,training:0},team:emptyTeam(),extraDeals:0,portfolio:[],deals:[],logs:[],history:[],ended:false};s.deals=newDeals(s);initMarkets(s);log(s,'远见资本成立，1,000 万元到账。第一批项目已经送来。');record(s);return s;}
+// A separate campaign marker keeps archived funds reproducible while the current game runs for sixty years.
+function isContinuous(s){return s?.campaign?.version===1;}
+function matureMarket(s){return !!s.continuation||isContinuous(s)&&s.year>=2026;}
+const fundingStages=Object.freeze({
+ angel:{name:'天使轮',purpose:'验证产品、完成样品与第一批交付',multiple:.55,minimum:120,tickets:[20,50,100],raise:.22},
+ preA:{name:'Pre-A 轮',purpose:'补足验证资金，检验客户复购与单位经济',multiple:1,minimum:450,tickets:[50,100,200],raise:.20},
+ a:{name:'A 轮',purpose:'复制已验证的业务，建立交付与销售体系',multiple:2,minimum:1200,tickets:[100,200,400],raise:.20},
+ b:{name:'B 轮',purpose:'扩大成熟业务，建设产能与区域渠道',multiple:5,minimum:4000,tickets:[200,500,1000],raise:.18},
+ c:{name:'C 轮及以后',purpose:'规模经营、行业整合与组织升级',multiple:12,minimum:12000,tickets:[500,1000,2000],raise:.16},
+ preIPO:{name:'Pre-IPO',purpose:'规范治理、补足上市准备与经营资金',multiple:25,minimum:35000,tickets:[500,1000,3000],raise:.14},
+ ipo:{name:'IPO 新股发行',purpose:'公开发行新股，为企业募集发展资金',multiple:35,minimum:60000,tickets:[100,300,1000],raise:.20}
+});
+const stageOrder=['angel','preA','a','b','c','preIPO'];
+function classifyLegacy(c){const n=c.financialHistory?.[0]?.revenue??c.revenue;return n>=3000?'preIPO':n>=1000?'c':n>=400?'b':n>=150?'a':n>=70?'preA':'angel';}
+function capitalFields(s,c,i=0,historical=null,legacy=false){
+ if(c.capital)return;
+ const salt=hash(c.id+':capital:'+s.marketSeed),slot=i%4;
+ const named={kingsoft:'a',tencent:'angel',alibaba:'a',byd:'a',baidu:'a',jd:'b',leshi:'b',xiaomi:'a',meituan:'a',catl:'a',bytedance:'a',luckin:'b'};
+ const stage=legacy?classifyLegacy(c):historical?(named[historical.key]||'a'):slot===0?'angel':slot===1?(salt%2?'preA':'a'):slot===2?(salt%2?'a':'b'):s.year>=1995?['b','c','preIPO','ipo'][salt%4]:'b';
+ const spec=fundingStages[stage],technology=['企业软件','精密制造','通信设备','生物科技','清洁能源','人工智能'].includes(c.sector);
+ c.capital={version:1,stage,entryStage:stage,technology,observedYear:s.year,legacy,roundTarget:0,pendingExpense:0,lastYear:s.year,history:[],resource:null,public:null,application:null};
+ if(!legacy&&!historical){const factor=spec.multiple;c.revenue=Math.max(15,Math.round(c.revenue*factor));c.team=Math.min(5000,Math.max(3,Math.round(c.team*Math.pow(factor,.8))));c.growth=Math.max(3,Math.round(c.growth/Math.pow(Math.max(1,factor),.3)));}
+}
+function issuerHistory(s,c){
+ if(c.capital.legacy||scenarioProject(c)||!['preIPO','ipo'].includes(c.capital.stage))return;
+ const original=c.cash,g=clamp(c.growth/100,.03,.2),rows=[];let cash=original;
+ for(let ago=3;ago>=1;ago--){const revenue=c.revenue/Math.pow(1+g,ago),trial={...c,revenue,team:Math.max(3,Math.round(c.team/Math.pow(1+g,ago*.8)))},k=costs(trial,revenue),profit=revenue-k.total,capex=revenue*profiles[c.sector].capex,flow=profit-capex,opening=cash,financing=Math.max(0,original*.5-opening-flow);cash=opening+flow+financing;
+  rows.push({year:s.year-ago,revenue,...k,costs:k.total,profit,capex,workingCapital:0,cashFlow:flow,cashOpening:opening,cash,financing,competition:c.competition,value:c.value,revenueSource:'issuer',growth:c.growth,support:0,strategy:'balanced',opening:false,event:financing>0?'发行材料历史记录：股东增资补足经营周转':'发行材料历史经营记录'});
+ }
+ c.cash=cash;c.value=Math.max(0,c.value+cash-original);Object.assign(c.financialHistory[0],{cash,cashOpening:cash,value:c.value});c.financialHistory=[...rows,...c.financialHistory];runway(c);
+ const ready=rows.slice(-2).every(r=>r.profit>0&&r.cashFlow>0)||s.year>=2019&&c.capital.technology&&c.quality>=.7&&c.cash>c.costs;
+ if(c.capital.stage==='ipo'&&!ready)c.capital.stage=c.capital.entryStage='preIPO';
+}
+function finishCapitalOffer(s,c){
+ if(!c.capital)return;issuerHistory(s,c);const p=fundingStages[c.capital.stage],special=scenarioProject(c);
+ if(!c.capital.legacy&&!special)c.value=Math.max(c.value,p.minimum);
+ c.capital.roundTarget=Math.ceil(Math.max(p.tickets.at(-1),special?.amounts.at(-1)||0,c.value*p.raise)/10)*10;
+ if(c.capital.stage==='ipo')c.capital.public={year:s.year,venue:listingVenues(s,c).at(-1)?.key||'main',locks:[],priceFactor:1,lastTradeYear:null};
+ c.financialHistory.at(-1).value=c.value;
+}
+function createCampaign(seed=Date.now()>>>0,ruleset=12){return fresh(seed,ruleset,{continuous:true});}
+function campaignBackupKey(raw){return 'longview-vc-save-v1-before-continuous-'+hash(raw).toString(16)+'-'+raw.length;}
+function toContinuous(input,original=JSON.stringify(input)){
+ const s=migrate(input);if(isContinuous(s))return s;
+ s.campaign={version:1,startYear:1990,endYear:2050,importedYear:s.year,legacySettlement:!!s.continuation||s.ended&&s.year===2026,backupKey:campaignBackupKey(original)};
+ for(const c of [...s.deals,...s.portfolio])capitalFields(s,c,0,null,true);
+ for(const c of s.deals)finishCapitalOffer(s,c);
+ if(s.ended&&s.year===2026){s.ended=false;for(const t of Object.values(s.team))t.active=false;s.extraDeals=0;s.deals=newDeals(s);sourceDeals(s);}
+ if(!valid(s))throw Error('旧档暂时无法接入连续经营，原件已保留');return s;
+}
+function resourceQuote(s,c,amount){
+ const partners=s.portfolio.filter(x=>x.status==='active'&&x.id!==c.id&&x.sector===c.sector&&x.cashFlow>0).map(x=>x.id),available=partners.length>0;
+ return {ok:available,partners,fee:Math.round((5+Math.min(25,amount*.02))*10)/10,reason:available?'':'需要可合作的同行业盈利持仓；投后经理可帮助协调，但不能凭空带来产业资源'};
+}
+function capitalTransaction(c,entry){c.capital.history.push(entry);c.capital.lastYear=entry.year;}
+function investCapital(s,c,amount,thesis,mode='financial'){
+ const q=investmentOutlook(s,c.id,amount,mode);if(!q?.ok)return false;
+ const pre=c.value,raise=c.capital.roundTarget,fee=c.capital.stage==='ipo'?raise*.035:0,opening=c.cash;
+ s.cash-=amount;s.invested+=amount;if(mode==='strategic')expense(s,q.resource.fee,'operations');
+ c.equity=amount/(pre+raise);c.cash+=raise-fee;c.value=pre+raise-fee;c.invested=amount;c.status='active';c.founded=s.year;c.capital.entryRevenue=c.revenue;
+ if(thesis&&['cash','growth','product'].includes(thesis))c.thesis={kind:thesis,year:s.year,revenue:c.revenue,profit:c.profit,equity:c.equity};c.exitPolicy='review';
+ if(c.capital.public&&mode==='strategic')addPublicLock(c,c.equity,Math.min(2050,s.year+1));
+ if(mode==='strategic')c.capital.resource={year:s.year,until:s.year+3,partners:q.resource.partners,fee:q.resource.fee,boost:0};
+ capitalTransaction(c,{year:s.year,kind:c.capital.stage==='ipo'?'ipo':'primary',stage:c.capital.stage,raise,fee,fundAmount:amount,preValue:pre,postValue:pre+raise,equityBefore:0,equityAfter:c.equity,cashBefore:opening,cashAfter:c.cash,purpose:fundingStages[c.capital.stage].purpose,mode});
+ c.notes.push(`${s.year} 年认购${fundingStages[c.capital.stage].name} ${amount} 万元，本轮共募集 ${raise.toFixed(1)} 万元，其他投资人认购 ${(raise-amount).toFixed(1)} 万元。`);
+ s.portfolio.push(c);s.deals=s.deals.filter(x=>x.id!==c.id);runway(c);syncMarket(s,c);log(s,`${c.name} · ${fundingStages[c.capital.stage].name}交割，基金投入 ${amount.toFixed(1)} 万，持股 ${(c.equity*100).toFixed(2)}%。`,'investment');record(s);return true;
+}
+function nextFundingStage(c){
+ const rows=c.financialHistory.filter(r=>!r.opening),index=stageOrder.indexOf(c.capital.stage);if(index<0||index>=stageOrder.length-1)return c.capital.stage;
+ const base=c.financialHistory[0].revenue,observed=rows.length,positive=rows.slice(-2).length===2&&rows.slice(-2).every(r=>r.profit>0&&r.cashFlow>0);
+ const ready=index<2?observed>=2&&c.revenue>=base*1.1:index<4?positive&&c.revenue>=base*(index===2?1.4:1.8):positive&&observed>=4;
+ return ready?stageOrder[index+1]:c.capital.stage;
+}
+function growthFunding(c,year){return c.capital&&!c.capital.public&&c.capital.application?.status!=='review'&&year-c.capital.lastYear>=2&&nextFundingStage(c)!==c.capital.stage&&c.cash<c.costs*1.5;}
+function addPublicLock(c,equity,unlockYear){const p=c.capital?.public;if(!p||equity<=0)return;const existing=p.locks.find(x=>x.unlockYear===unlockYear);if(existing)existing.equity+=equity;else p.locks.push({equity,unlockYear});}
+function adjustLocks(c,factor){if(c.capital?.public)for(const lock of c.capital.public.locks)lock.equity*=factor;}
+function capitalFunding(s,c,row,need,shock){
+ const previous=c.capital.stage,stage=need?previous:nextFundingStage(c),pre=Math.max(1,c.value),plan=fundingPlan(c,row),gap=need?plan.gap:Math.max(20,c.costs*.75-c.cash),raise=Math.min(pre*.6,gap);
+ if(raise<=1e-7)return false;
+ const odds=clamp(.22+c.quality*.42+(c.profit/Math.max(1,c.revenue))*.2+(era(s.year).m-1)*.3-(row.riskSeverity||0)*.2,.05,.85);
+ if(shock>=odds){if(need)row.event+='；本轮融资未完成';return false;}
+ const previousPrice=c.capital.history.at(-1)?.postValue,pricing=previousPrice&&pre<previousPrice*.95?'down':'normal';const oldEquity=c.equity,opening=c.cash;c.cash+=raise;c.value+=raise;c.equity*=pre/(pre+raise);adjustLocks(c,pre/(pre+raise));
+ c.round={cost:oldEquity*raise,oldEquity,raise,purpose:need?'补足经营周转缺口':fundingStages[stage].purpose,gap,stage,bridge:need,preValue:pre,postValue:pre+raise};
+ c.capital.stage=stage;row.financing+=raise;row.fundingPlan={...plan,gap,purpose:c.round.purpose};
+ capitalTransaction(c,{year:s.year,kind:c.capital.public?'placement':need?'bridge':'primary',stage,pricing,raise,fee:0,fundAmount:0,preValue:pre,postValue:pre+raise,equityBefore:oldEquity,equityAfter:c.equity,cashBefore:opening,cashAfter:c.cash,purpose:c.round.purpose,mode:'financial'});
+ log(s,`${c.name} · ${need?'过桥融资':fundingStages[stage].name}完成 ${raise.toFixed(1)} 万；本年可按比例跟投，未跟投部分按实际增资稀释。`,'warning');return true;
+}
+function listingVenues(s,c){
+ const venues=[{key:'main',name:'主板',from:1990,technology:false}];if(s.year>=2009)venues.push({key:'chinext',name:'创业板',from:2009,technology:false});if(s.year>=2019&&c.capital?.technology)venues.push({key:'star',name:'科创板',from:2019,technology:true});return venues;
+}
+function listingQuote(s,id,venue='main'){
+ const c=s.portfolio.find(x=>x.id===id&&x.status==='active');if(!c||!c.capital)return {ok:false,reason:'这家企业不在当前持仓中'};
+ const rows=c.financialHistory.filter(r=>!r.opening),recent=rows.slice(-2),v=listingVenues(s,c).find(x=>x.key===venue),profitable=recent.length===2&&recent.every(r=>r.profit>0&&r.cashFlow>0),science=venue==='star'&&c.capital.technology&&c.quality>=.7&&c.revenue>=1000&&c.cash>=Math.max(c.costs,Math.max(0,-c.cashFlow)*2);
+ const fee=Math.max(2,Math.min(30,c.value*.001)),lockYears=c.equity>=.3?3:1;
+ const reason=s.ended||s.year>2049-lockYears?'已接近 2050 年，来不及完成发行准备与约定锁定期':c.capital.public?'企业已经上市':!v?'当前年份或企业类型不适用这个市场':c.capital.application?.status==='review'?'已有申请正在推进':c.capital.application&&s.year-c.capital.application.year<2?'上次申请后仍需整改和更新材料':rows.length<3||c.age<4&&!['c','preIPO'].includes(c.capital.entryStage)?'企业需要三年完整经营材料，早期项目还需先验证并扩大业务':!['c','preIPO'].includes(c.capital.stage)&&!(c.revenue>=Math.max(500,c.financialHistory[0].revenue*3)&&rows.length>=4&&c.quality>=.65)?'先完成业务验证与规模经营，再考虑上市，不必依次完成所有融资轮次':!profitable&&!science?'财务与研发成果尚不足以支持发行准备':c.distress||c.integration||currentRebuild(c)||c.round?'先处理债务、融资或未完成的整合建设':c.cash<fee+Math.max(30,c.costs*.5)?'公司需要先留够申请费用和经营储备':'';
+ return {ok:!reason,reason,venue,venueName:v?.name||'',fee,raise:Math.max(100,c.value*.2),lockYears,route:science?'科创成长路径':'持续经营路径'};
+}
+function applyListing(s,id,venue='main'){
+ const q=listingQuote(s,id,venue);if(!q.ok)return false;const c=s.portfolio.find(x=>x.id===id);c.cash-=q.fee;c.capital.pendingExpense+=q.fee;c.value=Math.max(0,c.value-q.fee);c.capital.application={year:s.year,venue,status:'review',fee:q.fee,lockYears:q.lockYears};
+ c.notes.push(`${s.year} 年启动${q.venueName}发行准备，公司支付资料、审计与治理准备费用 ${q.fee.toFixed(1)} 万；后续仍需审核和市场窗口。`);runway(c);syncMarket(s,c);record(s);return true;
+}
+function settleListing(s,c,row,shock){
+ const a=c.capital.application;if(c.round||c.distress)return;if(!a||a.status!=='review'||s.year<=a.year)return;
+ // Passing preparation is a simulation outcome, not a promise of approval or future price.
+ const v=listingVenues(s,c).find(x=>x.key===a.venue),good=c.profit>0&&c.cashFlow>0||a.venue==='star'&&c.quality>=.7&&c.cash>c.costs;
+ if(s.year+(a.lockYears||1)>2050||!v||!good||era(s.year).m<.8||shock>.35+c.quality*.35){a.status='withdrawn';c.notes.push(`${s.year} 年发行准备暂缓，需要更新经营与治理材料；前期费用不退。`);return;}
+ const pre=Math.max(1,c.value),raise=Math.max(100,pre*.2),fee=raise*.035,old=c.equity,opening=c.cash;c.equity*=pre/(pre+raise);c.cash+=raise-fee;c.value=pre+raise-fee;
+ c.capital.public={year:s.year,venue:a.venue,locks:[{equity:c.equity,unlockYear:s.year+(a.lockYears||1)}],priceFactor:1,lastTradeYear:null};c.capital.stage='ipo';a.status='listed';c.round=null;row.financing+=raise-fee;
+ capitalTransaction(c,{year:s.year,kind:'ipo',stage:'ipo',raise,fee,fundAmount:0,preValue:pre,postValue:pre+raise,equityBefore:old,equityAfter:c.equity,cashBefore:opening,cashAfter:c.cash,purpose:'公开发行新股募集发展资金',mode:'public'});
+ log(s,`${c.name} 完成${v.name}发行，企业净募资 ${(raise-fee).toFixed(1)} 万；原有持股稀释并按本次条款锁定至 ${s.year+(a.lockYears||1)} 年，基金没有因此自动收到退出款。`,'success');
+}
+function publicQuote(s,id,fraction=1){
+ const c=s.portfolio.find(x=>x.id===id&&x.status==='active'),p=c?.capital?.public;if(!p)return {ok:false,reason:'这不是上市持仓'};
+ const locked=p.locks.filter(x=>x.unlockYear>s.year).reduce((n,x)=>n+x.equity,0),available=Math.max(0,c.equity-locked),liquidity=.005+marketRandom(s,c.id+':liquidity:'+s.year)*.025,tradable=Math.min(available,liquidity),sold=tradable*fraction,feeRate=.003,value=c.equity>0?exitValue(c,1)*sold/c.equity:0;
+ const reason=s.ended?'基金已经结算':![.25,.5,1].includes(fraction)?'请选择可流通股份的四分之一、一半或全部':available<1e-9?'当前股份仍在锁定期':p.lastTradeYear===s.year?'今年已办理过一次减持，下一年再议':c.distress?'先处理偿债危机':'';
+ return {ok:!reason,reason,fraction,locked,available,tradable,liquidity,sold,gross:value,fee:value*feeRate,proceeds:value*(1-feeRate),unlockYear:Math.max(s.year,...p.locks.filter(x=>x.unlockYear>s.year).map(x=>x.unlockYear))};
+}
+function sellPublic(s,id,fraction=1){
+ const q=publicQuote(s,id,fraction);if(!q.ok)return false;const c=s.portfolio.find(x=>x.id===id),p=c.capital.public;
+ if(q.sold>=c.equity-1e-9){p.lastTradeYear=s.year;realize(s,c,q.proceeds,'上市退出');}
+ else{c.equity-=q.sold;c.proceeds+=q.proceeds;s.cash+=q.proceeds;s.returned+=q.proceeds;p.lastTradeYear=s.year;log(s,`${c.name} · 减持可流通股，扣除费用到账 ${q.proceeds.toFixed(1)} 万，剩余持股 ${(c.equity*100).toFixed(2)}%。`,'success');}
+ (c.capital.trades??=[]).push({year:s.year,equity:q.sold,proceeds:q.proceeds,fee:q.fee});record(s);return true;
+}
+function prepareCapital(s,c){
+ const r=c.capital?.resource;if(!r)return;
+ r.boost=0;const partners=r.partners.some(id=>s.portfolio.some(x=>x.id===id&&x.status==='active'&&x.cashFlow>0));
+ if(s.year<=r.until&&partners&&marketRandom(s,c.id+':resource:'+s.year)<Math.min(.85,.5+level(s,'operations')*.1)){r.boost=.04+level(s,'operations')*.01;r.lastResult='对接形成了可用渠道，订单仍参与市场竞争';}
+ else r.lastResult=s.year>r.until?'约定协同期已结束':partners?'本期对接尚未转化为可用渠道':'合作方暂时无法继续提供资源';
+}
+function settleCapital(s,c,row,shock){
+ const p=c.capital?.public;if(p&&s.year>p.year){p.priceFactor=clamp(.8+marketRandom(s,c.id+':public:'+s.year)*.4+clamp((c.organicGrowth||0)*.004,-.2,.2),.55,1.45);const cash=Math.max(0,c.cash),debt=debtBalance(c);c.value=Math.max(0,Math.max(0,c.value-cash+debt)*p.priceFactor+cash-debt);}
+ if(c.capital&&!p)settleListing(s,c,row,shock);
+}
+function validCapital(c,year){
+ const f=c.capital;if(f===undefined)return true;
+ if(!f||f.version!==1||!Object.hasOwn(fundingStages,f.stage)||!Object.hasOwn(fundingStages,f.entryStage)||typeof f.technology!=='boolean'||typeof f.legacy!=='boolean'||!Number.isInteger(f.observedYear)||f.observedYear>year||!Number.isFinite(f.roundTarget)||f.roundTarget<0||!Number.isFinite(f.pendingExpense)||f.pendingExpense<0||!Number.isInteger(f.lastYear)||f.lastYear>year||!Array.isArray(f.history)||f.history.length>128)return false;
+ if(f.history.some(r=>!r||!Number.isInteger(r.year)||r.year>year||!Object.hasOwn(fundingStages,r.stage)||!['primary','bridge','ipo','placement','follow'].includes(r.kind)||!['raise','fee','fundAmount','preValue','postValue','equityBefore','equityAfter'].every(k=>Number.isFinite(r[k])&&r[k]>=0)||!['cashBefore','cashAfter'].every(k=>Number.isFinite(r[k]))||r.equityBefore>1||r.equityAfter>1||r.fee>r.raise||r.kind!=='follow'&&r.fundAmount>r.raise||Math.abs(r.postValue-r.preValue-r.raise)>.001||Math.abs(r.cashAfter-r.cashBefore-r.raise+r.fee)>.001))return false;
+ if(f.resource&&(!Number.isInteger(f.resource.year)||f.resource.year>year||f.resource.until!==f.resource.year+3||!Array.isArray(f.resource.partners)||!f.resource.partners.every(x=>typeof x==='string')||!['fee','boost'].every(k=>Number.isFinite(f.resource[k])&&f.resource[k]>=0)||f.resource.boost>.1))return false;
+ if(f.public){const p=f.public;if(f.stage!=='ipo')return false;if(!Number.isInteger(p.year)||p.year>year||!['main','chinext','star'].includes(p.venue)||p.venue==='star'&&p.year<2019||p.venue==='chinext'&&p.year<2009||!Array.isArray(p.locks)||p.locks.length>64||p.locks.some(x=>!x||!Number.isFinite(x.equity)||x.equity<0||!Number.isInteger(x.unlockYear)||x.unlockYear>2050)||!Number.isFinite(p.priceFactor)||p.priceFactor<.5||p.priceFactor>1.5||p.lastTradeYear!==null&&(!Number.isInteger(p.lastTradeYear)||p.lastTradeYear>year))return false;}
+ if(f.public&&c.status==='active'&&f.public.locks.filter(x=>x.unlockYear>year).reduce((n,x)=>n+x.equity,0)>c.equity+1e-7)return false;
+ if(!f.public&&f.stage==='ipo')return false;
+ if(f.application&&(!Number.isInteger(f.application.year)||f.application.year>year||!['main','chinext','star'].includes(f.application.venue)||!['review','withdrawn','listed'].includes(f.application.status)||!Number.isFinite(f.application.fee)||f.application.fee<0||f.application.lockYears!==undefined&&![1,3].includes(f.application.lockYears)))return false;
+ if(f.trades&&(!Array.isArray(f.trades)||f.trades.length>60||f.trades.some(r=>!r||!Number.isInteger(r.year)||r.year>year||!['equity','proceeds','fee'].every(k=>Number.isFinite(r[k])&&r[k]>=0))))return false;
+ return true;
+}
+
+function fresh(seed=Date.now()>>>0,ruleset=12,options={}){if(![11,12].includes(ruleset))throw Error('Unknown economic rules');const s={version:10,...(options.continuous?{campaign:{version:1,startYear:1990,endYear:2050}}:{}),...(ruleset===12?{ruleset:12}:{}),dividends:0,seed:seed>>>0,year:1990,initial:1000,cash:1000,invested:0,returned:0,expenses:0,expenseBreakdown:{legacy:0,research:0,operations:0,payroll:0,recruiting:0,training:0},team:emptyTeam(),extraDeals:0,portfolio:[],deals:[],logs:[],history:[],ended:false};s.deals=newDeals(s);initMarkets(s);log(s,'远见资本成立，1,000 万元到账。第一批项目已经送来。');record(s);return s;}
 function teamQuote(s,key,action){
  const r=roles[key],t=s.team[key];if(!r||!t||s.ended)return {ok:false,reason:'基金已结案，或没有这个岗位'};
  let target=t.level,fee=0,salary=0;
@@ -685,17 +836,18 @@ function supplementDiligence(s){
 function research(s,id){const c=s.deals.find(c=>c.id===id),l=level(s,'diligence'),fee=diligenceCost(s);if(s.ended||!c||c.status!=='available'||c.ddLevel>=l||s.cash<fee)return false;if(fee>0)expense(s,fee,'research');c.dd=true;c.ddLevel=l;log(s,`完成 ${c.name} 的${l?'专家 '+l+' 级':'基础'}尽调${fee>0?'，支出 '+fee+' 万元':'，已含本期专家薪酬，不另收项目费用'}。`);record(s);return true;}
 function stressProfit(c){const revenue=c.revenue*.8;return revenue-costs(c,revenue).total;}
 function score(c){return Math.round(clamp(50+c.growth*.3+(c.profit/Math.max(1,c.revenue))*45-c.competition*22+Math.min(c.runway,24)*.5,0,100));}
-function invest(s,id,amount,thesis=null){const c=s.deals.find(c=>c.id===id);if(!c||!investmentOutlook(s,id,amount)?.ok)return false;s.cash-=amount;s.invested+=amount;c.equity=amount/(c.value+amount);c.value+=amount;c.cash+=amount;runway(c);c.invested=amount;c.status='active';c.founded=s.year;if(thesis&&['cash','growth','product'].includes(thesis)){c.thesis={kind:thesis,year:s.year,revenue:c.revenue,profit:c.profit,equity:c.equity};c.exitPolicy='review';}c.notes.push(`${s.year} 年首次投资 ${amount} 万元，资金进入企业现金账户`);s.portfolio.push(c);s.deals=s.deals.filter(d=>d.id!==id);log(s,`投资 ${c.name} ${amount} 万元，获得 ${(c.equity*100).toFixed(1)}% 股权。`,'investment');record(s);return true;}
-function follow(s,id){const c=s.portfolio.find(c=>c.id===id);if(s.ended||!c||c.status!=='active'||c.distress||!c.round||s.cash+1e-8<c.round.cost)return false;const cost=c.round.cost;s.cash=Math.max(0,s.cash-cost);s.invested+=cost;c.invested+=cost;c.equity=c.round.oldEquity;c.round=null;c.notes.push(`${s.year} 年按比例认购本轮份额 ${cost.toFixed(1)} 万元；本轮资金已经到账，这笔跟投只用于保住持股`);log(s,`${c.name} 完成跟投 ${cost.toFixed(1)} 万元，维持融资前持股比例。`,'investment');record(s);return true;}
+function invest(s,id,amount,thesis=null,mode='financial'){const c=s.deals.find(c=>c.id===id);if(c?.capital)return investCapital(s,c,amount,thesis,mode);if(!c||!investmentOutlook(s,id,amount)?.ok)return false;s.cash-=amount;s.invested+=amount;c.equity=amount/(c.value+amount);c.value+=amount;c.cash+=amount;runway(c);c.invested=amount;c.status='active';c.founded=s.year;if(thesis&&['cash','growth','product'].includes(thesis)){c.thesis={kind:thesis,year:s.year,revenue:c.revenue,profit:c.profit,equity:c.equity};c.exitPolicy='review';}c.notes.push(`${s.year} 年首次投资 ${amount} 万元，资金进入企业现金账户`);s.portfolio.push(c);s.deals=s.deals.filter(d=>d.id!==id);log(s,`投资 ${c.name} ${amount} 万元，获得 ${(c.equity*100).toFixed(1)}% 股权。`,'investment');record(s);return true;}
+function follow(s,id){const c=s.portfolio.find(c=>c.id===id);if(s.ended||!c||c.status!=='active'||c.distress||!c.round||s.cash+1e-8<c.round.cost)return false;const cost=c.round.cost;if(c.capital){const delta=c.round.oldEquity-c.equity;capitalTransaction(c,{year:s.year,kind:'follow',stage:c.round.stage||c.capital.stage,raise:0,fee:0,fundAmount:cost,preValue:c.value,postValue:c.value,equityBefore:c.equity,equityAfter:c.round.oldEquity,cashBefore:c.cash,cashAfter:c.cash,purpose:'按原协议补款承接本轮份额；企业融资已到账，不重复注资',mode:'financial'});if(c.capital.public&&delta>0)addPublicLock(c,delta,Math.min(2050,s.year+1));}
+ s.cash=Math.max(0,s.cash-cost);s.invested+=cost;c.invested+=cost;c.equity=c.round.oldEquity;c.round=null;c.notes.push(`${s.year} 年按比例认购本轮份额 ${cost.toFixed(1)} 万元；本轮资金已经到账，这笔跟投只用于保住持股`);log(s,`${c.name} 完成跟投 ${cost.toFixed(1)} 万元，维持融资前持股比例。`,'investment');record(s);return true;}
 function setStrategy(s,id,strategy){const c=s.portfolio.find(c=>c.id===id);if(s.ended||!c||c.status!=='active'||!Object.hasOwn(strategies,strategy)||c.strategy===strategy)return false;c.strategy=strategy;log(s,`${c.name} 下一年度策略：${strategies[strategy].name}。`);return true;}
-function realize(s,c,value,status){const p=currentRebuild(c);if(p){p.status='退出终止';p.endYear=s.year;}c.distress=null;if(c.integration){const a=c.acquisitions.find(a=>a.targetId===c.integration.targetId);a.status='整合终止';c.integration=null;}c.pendingDividend=0;c.pendingAllocationPrincipal=0;c.exitOffer=null;c.exitReview=exitReview(c,s.year,value,status);c.proceeds=value;c.status=status;c.round=null;s.cash+=value;s.returned+=value;syncMarket(s,c);c.notes.push(`${s.year} 年${status}，回款 ${value.toFixed(1)} 万元`);log(s,`${c.name} · ${status}，回款 ${value.toFixed(1)} 万元（含历史分红总回款 ${((value+(c.dividendReceived||0))/c.invested).toFixed(2)}×）。`,value+(c.dividendReceived||0)>=c.invested?'success':'warning');}
+function realize(s,c,value,status){const p=currentRebuild(c);if(p){p.status='退出终止';p.endYear=s.year;}c.distress=null;if(c.integration){const a=c.acquisitions.find(a=>a.targetId===c.integration.targetId);a.status='整合终止';c.integration=null;}c.pendingDividend=0;c.pendingAllocationPrincipal=0;c.exitOffer=null;const total=isContinuous(s)?c.proceeds+value:value;c.exitReview=exitReview(c,s.year,total,status);c.proceeds=total;c.status=status;c.round=null;s.cash+=value;s.returned+=value;syncMarket(s,c);c.notes.push(`${s.year} 年${status}，回款 ${value.toFixed(1)} 万元`);log(s,`${c.name} · ${status}，回款 ${value.toFixed(1)} 万元（含历史分红总回款 ${((value+(c.dividendReceived||0))/c.invested).toFixed(2)}×）。`,value+(c.dividendReceived||0)>=c.invested?'success':'warning');}
 function saleFactor(s){return (s.ruleset===12?.5:.65)+level(s,'exit')*.05;}
-function sell(s,id){const c=s.portfolio.find(c=>c.id===id);if(s.ended||!c||c.status!=='active'||c.age<2||c.integration||c.distress||c.workoutYear===s.year||c.rescueYear===s.year||c.divestYear===s.year||currentRebuild(c))return false;realize(s,c,exitValue(c,saleFactor(s)),'股权转让');record(s);return true;}
+function sell(s,id){if(s.portfolio.find(c=>c.id===id)?.capital?.public)return sellPublic(s,id,1);const c=s.portfolio.find(c=>c.id===id);if(s.ended||!c||c.status!=='active'||c.age<2||c.integration||c.distress||c.workoutYear===s.year||c.rescueYear===s.year||c.divestYear===s.year||currentRebuild(c))return false;realize(s,c,exitValue(c,saleFactor(s)),'股权转让');record(s);return true;}
 function supportIds(s){const l=level(s,'operations'),cap=[0,3,6,10][l];return s.portfolio.filter(c=>c.status==='active').sort((a,b)=>a.runway-b.runway||a.profit-b.profit||a.id.localeCompare(b.id)).slice(0,cap).map(c=>c.id);}
 // Pure annual operating statement. Identical shocks allow causal comparisons in tests.
 function operate(c,e,support,shocks,market=null,integration=null,year=null){
  const p=profiles[c.sector],st=strategies[c.strategy],oldRevenue=c.revenue,opening=c.cash,teamOpening=c.team,hot=e.hot.includes(c.sector);
- const paidPrice=c.pendingAcquisitionPrice||0,paidFee=c.pendingAcquisitionFee||0,acquiredRevenue=c.acquisitionBaseRevenue||0,loanDrawdown=c.pendingLoanDrawdown||0,acquisitionEquity=c.pendingEquityRaise||0,rescueEquity=c.pendingRescueEquity||0,workoutFee=c.pendingWorkoutFee||0,noncashFee=c.pendingNoncashFee||0,rescuePrincipal=c.pendingRescuePrincipal||0,debtConversion=c.pendingDebtConversion||0,divestPrice=c.pendingDivestPrice||0,divestFee=c.pendingDivestFee||0,divestPrincipal=c.pendingDivestPrincipal||0,divestRevenue=c.pendingDivestRevenue||0,rebuildExpense=c.pendingRebuildExpense||0,rebuildCapex=c.pendingRebuildCapex||0,dividend=c.pendingDividend||0,allocationPrincipal=c.pendingAllocationPrincipal||0;
+ const preparationFee=c.capital?.pendingExpense||0;const paidPrice=c.pendingAcquisitionPrice||0,paidFee=c.pendingAcquisitionFee||0,acquiredRevenue=c.acquisitionBaseRevenue||0,loanDrawdown=c.pendingLoanDrawdown||0,acquisitionEquity=c.pendingEquityRaise||0,rescueEquity=c.pendingRescueEquity||0,workoutFee=c.pendingWorkoutFee||0,noncashFee=c.pendingNoncashFee||0,rescuePrincipal=c.pendingRescuePrincipal||0,debtConversion=c.pendingDebtConversion||0,divestPrice=c.pendingDivestPrice||0,divestFee=c.pendingDivestFee||0,divestPrincipal=c.pendingDivestPrincipal||0,divestRevenue=c.pendingDivestRevenue||0,rebuildExpense=c.pendingRebuildExpense||0,rebuildCapex=c.pendingRebuildCapex||0,dividend=c.pendingDividend||0,allocationPrincipal=c.pendingAllocationPrincipal||0;
  let interestExpense=0;for(const l of c.loans||[]){if(l.defaulted||l.balance<=1e-7)continue;interestExpense+=l.balance*l.rate;l.due=l.balance/Math.max(1,l.remaining);l.remaining=Math.max(0,l.remaining-1);}const principalDue=debtDue(c);c.interestExpense=interestExpense;
  let event='正常经营',supplyShock=0,demandShock=0;
  c.competition=market?market.pressure:clamp(c.competition+(hot?.025:-.008)+(shocks.competition-.5)*.09,.1,.95);
@@ -710,20 +862,22 @@ function operate(c,e,support,shocks,market=null,integration=null,year=null){
  else if(c.strategy==='defend')c.team=Math.max(3,Math.floor(c.team*.92));
  else if(g>.18&&c.profit>0)c.team=Math.min(10000,c.team+Math.max(1,Math.round(c.team*.035)));
  const riskSettlement=settleVentureRisk(c,year??((c.financialHistory?.at(-1)?.year??1989)+1),shocks,support);
- const k=costs(c,c.revenue,support,supplyShock,teamOpening);if(riskSettlement?.expense){k.overhead+=riskSettlement.expense;k.total+=riskSettlement.expense;}const integrationCost=integration?.cost||0;k.total+=integrationCost+paidFee+interestExpense+workoutFee+divestFee+rebuildExpense;c.costs=k.total;c.profit=c.revenue-c.costs;c.capex=c.revenue*p.capex*st.capex+rebuildCapex;c.workingCapital=Math.max(0,c.revenue-oldRevenue-acquiredRevenue+divestRevenue)*p.wc+(riskSettlement?.workingCapital||0);c.cashFlow=c.profit-c.capex-c.workingCapital+noncashFee;c.cash=opening+c.cashFlow+paidFee+workoutFee-noncashFee+divestFee+rebuildExpense+rebuildCapex;c.profitYears=c.profit>0?c.profitYears+1:0;const principalPaid=payPrincipal(c);runway(c);
- c.pendingDividend=0;c.pendingAllocationPrincipal=0;c.pendingRebuildExpense=0;c.pendingRebuildCapex=0;c.pendingDivestPrice=0;c.pendingDivestFee=0;c.pendingDivestPrincipal=0;c.pendingDivestRevenue=0;c.value=fundamental(c,e)*(c.integration?.9:1);if(divestPrice)event+=`；业务/资产出售 ${divestPrice.toFixed(1)} 万，费用 ${divestFee.toFixed(1)} 万，提前还本 ${divestPrincipal.toFixed(1)} 万`;if(integration)event+='；'+integration.event;if(riskSettlement?.event)event+='；'+riskSettlement.event.text;if(riskSettlement?.recovery>.01)event+=`；延期款回收 ${riskSettlement.recovery.toFixed(1)} 万`;c.pendingAcquisitionPrice=0;c.pendingAcquisitionFee=0;c.acquisitionBaseRevenue=0;c.pendingLoanDrawdown=0;c.pendingEquityRaise=0;c.pendingRescueEquity=0;c.pendingWorkoutFee=0;c.pendingNoncashFee=0;c.pendingRescuePrincipal=0;c.pendingDebtConversion=0;
- return {...(riskSettlement?{riskExpense:riskSettlement.expense,riskFrozen:riskSettlement.frozen,riskRecovered:riskSettlement.recovery,riskReceivables:riskSettlement.receivables,riskSeverity:riskSettlement.severity,...(riskSettlement.event?{riskEvent:riskSettlement.event}:{})}:{}),...(modern(c)?{staffOpening:teamOpening,staffClosing:c.team,expansionStreak:c.expansionStreak}:{}),dividend,allocationPrincipal,rebuildExpense,rebuildCapex,divestPrice,divestFee,divestPrincipal,divestRevenue,rescueEquity,workoutFee,noncashFee,debtConversion,interestExpense,principalDue:principalDue+rescuePrincipal,principalPaid:principalPaid+rescuePrincipal+divestPrincipal+allocationPrincipal,debtBalance:debtBalance(c),loanDrawdown,acquisitionEquity,revenue:c.revenue,...k,costs:c.costs,profit:c.profit,capex:c.capex,workingCapital:c.workingCapital,cashFlow:c.cashFlow,cashOpening:opening+paidPrice+paidFee-loanDrawdown-acquisitionEquity-rescueEquity+workoutFee-noncashFee+rescuePrincipal-divestPrice+divestFee+divestPrincipal+rebuildExpense+rebuildCapex+dividend+allocationPrincipal,cash:c.cash,financing:0,acquisitionPaid:paidPrice,acquisitionFee:paidFee,integrationCost,integrationLost:integration?.loss||0,organicGrowth:c.organicGrowth,competition:c.competition,value:c.value,growth:c.growth,support,strategy:c.strategy,event,...(market?{market:JSON.parse(JSON.stringify(market))}:{})};
+ const k=costs(c,c.revenue,support,supplyShock,teamOpening);if(preparationFee){k.overhead+=preparationFee;k.total+=preparationFee;}if(riskSettlement?.expense){k.overhead+=riskSettlement.expense;k.total+=riskSettlement.expense;}const integrationCost=integration?.cost||0;k.total+=integrationCost+paidFee+interestExpense+workoutFee+divestFee+rebuildExpense;c.costs=k.total;c.profit=c.revenue-c.costs;c.capex=c.revenue*p.capex*st.capex+rebuildCapex;c.workingCapital=Math.max(0,c.revenue-oldRevenue-acquiredRevenue+divestRevenue)*p.wc+(riskSettlement?.workingCapital||0);c.cashFlow=c.profit-c.capex-c.workingCapital+noncashFee;c.cash=opening+c.cashFlow+preparationFee+paidFee+workoutFee-noncashFee+divestFee+rebuildExpense+rebuildCapex;c.profitYears=c.profit>0?c.profitYears+1:0;const principalPaid=payPrincipal(c);runway(c);
+ if(c.capital)c.capital.pendingExpense=0;c.pendingDividend=0;c.pendingAllocationPrincipal=0;c.pendingRebuildExpense=0;c.pendingRebuildCapex=0;c.pendingDivestPrice=0;c.pendingDivestFee=0;c.pendingDivestPrincipal=0;c.pendingDivestRevenue=0;c.value=fundamental(c,e)*(c.integration?.9:1);if(divestPrice)event+=`；业务/资产出售 ${divestPrice.toFixed(1)} 万，费用 ${divestFee.toFixed(1)} 万，提前还本 ${divestPrincipal.toFixed(1)} 万`;if(integration)event+='；'+integration.event;if(riskSettlement?.event)event+='；'+riskSettlement.event.text;if(riskSettlement?.recovery>.01)event+=`；延期款回收 ${riskSettlement.recovery.toFixed(1)} 万`;c.pendingAcquisitionPrice=0;c.pendingAcquisitionFee=0;c.acquisitionBaseRevenue=0;c.pendingLoanDrawdown=0;c.pendingEquityRaise=0;c.pendingRescueEquity=0;c.pendingWorkoutFee=0;c.pendingNoncashFee=0;c.pendingRescuePrincipal=0;c.pendingDebtConversion=0;
+ return {...(preparationFee?{preparationFee}:{}),...(riskSettlement?{riskExpense:riskSettlement.expense,riskFrozen:riskSettlement.frozen,riskRecovered:riskSettlement.recovery,riskReceivables:riskSettlement.receivables,riskSeverity:riskSettlement.severity,...(riskSettlement.event?{riskEvent:riskSettlement.event}:{})}:{}),...(modern(c)?{staffOpening:teamOpening,staffClosing:c.team,expansionStreak:c.expansionStreak}:{}),dividend,allocationPrincipal,rebuildExpense,rebuildCapex,divestPrice,divestFee,divestPrincipal,divestRevenue,rescueEquity,workoutFee,noncashFee,debtConversion,interestExpense,principalDue:principalDue+rescuePrincipal,principalPaid:principalPaid+rescuePrincipal+divestPrincipal+allocationPrincipal,debtBalance:debtBalance(c),loanDrawdown,acquisitionEquity,revenue:c.revenue,...k,costs:c.costs,profit:c.profit,capex:c.capex,workingCapital:c.workingCapital,cashFlow:c.cashFlow,cashOpening:opening+preparationFee+paidPrice+paidFee-loanDrawdown-acquisitionEquity-rescueEquity+workoutFee-noncashFee+rescuePrincipal-divestPrice+divestFee+divestPrincipal+rebuildExpense+rebuildCapex+dividend+allocationPrincipal,cash:c.cash,financing:0,acquisitionPaid:paidPrice,acquisitionFee:paidFee,integrationCost,integrationLost:integration?.loss||0,organicGrowth:c.organicGrowth,competition:c.competition,value:c.value,growth:c.growth,support,strategy:c.strategy,event,...(market?{market:JSON.parse(JSON.stringify(market))}:{})};
 }
 function advance(s){
  if(s.ended)return false;for(const c of s.portfolio.filter(c=>c.status==='active'&&c.distress)){liquidate(s,c.id,'assets',null,true);}const opsLevel=level(s,'operations'),exitLevel=level(s,'exit'),supported=new Set(supportIds(s));
  for(const k of Object.keys(roles))if(level(s,k))s.team[k].years++;
  s.year++;const e=era(s.year),fee=Math.min(s.cash,10);expense(s,fee,'operations');log(s,`年度基金运营支出 ${fee.toFixed(1)} 万元。`);
+ if(isContinuous(s))for(const c of s.portfolio.filter(c=>c.status==='active'))prepareCapital(s,c);
  const integrationResults=integrate(s,supported,opsLevel);progressRebuilds(s,supported,opsLevel);const marketResults=compete(s,e,supported,opsLevel);
  for(const c of s.portfolio.filter(c=>c.status==='active')){
   c.exitOffer=null;c.round=null;c.age++;const shocks={growth:rng(s),competition:rng(s),event:rng(s),funding:rng(s),exit:rng(s),ipo:rng(s)};
   const row=operate(c,e,supported.has(c.id)?opsLevel:0,shocks,marketResults[c.id],integrationResults[c.id],s.year);row.year=s.year;
   const margin=c.profit/Math.max(1,c.revenue),plan=fundingPlan(c,row),need=plan.gap>1e-7;
-  if(need&&s.year<endYear(s)){
+  if(c.capital&&s.year<endYear(s)&&(need||growthFunding(c,s.year)))capitalFunding(s,c,row,need,shocks.funding);
+  else if(!c.capital&&need&&s.year<endYear(s)){
    const fundingOdds=clamp(.2+c.quality*.4+clamp(margin,-.5,.5)*.35+(c.organicGrowth??c.growth)*.002-c.competition*.14+(e.m-1)*.35-(row.riskSeverity||0)*.18,.04,.88);
    if(shocks.funding<fundingOdds){const pre=Math.max(1,c.value),raise=Math.min(pre*.8,plan.gap),oldEquity=c.equity;c.cash+=raise;c.value=pre+raise;c.equity*=pre/c.value;c.round={cost:oldEquity*raise,oldEquity,raise,purpose:plan.purpose,gap:plan.gap};row.financing=raise;row.fundingPlan=plan;log(s,`${c.name} 完成融资 ${raise.toFixed(1)} 万元，持股稀释至 ${(c.equity*100).toFixed(1)}%；本年可按比例认购。`,'warning');}
    else{row.event+='；这一轮没有募到钱';log(s,`${c.name} 这一轮没募到钱，接下来只能靠现有现金和经营回款。`,'warning');}
@@ -733,10 +887,11 @@ function advance(s){
   runway(c);Object.assign(row,{cash:c.cash,value:c.value,ownership:c.equity,invested:c.invested});row.story=operatingStory(c,row);row.event=row.story+'；'+row.event;c.financialHistory.push(row);
   c.notes.push(`${s.year} 年：收入 ${c.revenue.toFixed(1)}，成本 ${c.costs.toFixed(1)}，利润 ${c.profit.toFixed(1)}，净现金流 ${c.cashFlow.toFixed(1)} 万元；${row.event}${row.support?'；投后经理支持':''}`);
   if(c.cash<=0||debtDue(c)>1e-7){if(s.year<endYear(s)&&debtBalance(c)>1e-7){c.distress={year:s.year};c.round=null;c.value*=.5;row.value=c.value;row.exitChance=0;log(s,`${c.name} 有一笔债还不上。今年还能谈展期、转股或由基金救助；缺口留到明年，就只能清算。`,'warning');syncMarket(s,c);continue;}liquidate(s,c.id,'assets',null,true);continue;}
+  if(c.capital){settleCapital(s,c,row,shocks.ipo);Object.assign(row,{cash:c.cash,value:c.value,ownership:c.equity});}
   syncMarket(s,c);const exitChance=exitOdds(c,e,exitLevel);row.exitChance=c.age>=4&&!c.integration&&!currentRebuild(c)?exitChance:0;
-  if(c.age>=4&&!c.integration&&!currentRebuild(c)&&shocks.exit<exitChance){const ipo=c.profitYears>=2&&c.revenue>=180&&c.quality>.65&&c.market.share>=.025&&shocks.ipo>.45;const factor=ipo?1.25+exitLevel*.06:clamp(.95+margin*.3-c.competition*.08+exitLevel*.05,.65,1.25);const offer={year:s.year,factor,value:exitValue(c,factor),status:ipo?'上市退出':'并购退出'};if(c.exitPolicy==='review'){c.exitOffer=offer;log(s,`${c.name} 收到${offer.status}报价，基金可回收 ${offer.value.toFixed(1)} 万；本年可接受，也可继续持有。`,'success');}else realize(s,c,offer.value,offer.status);}
+  if(!c.capital?.public&&c.capital?.application?.status!=='review'&&c.age>=4&&!c.integration&&!currentRebuild(c)&&shocks.exit<exitChance){const ipo=!c.capital&&c.profitYears>=2&&c.revenue>=180&&c.quality>.65&&c.market.share>=.025&&shocks.ipo>.45;const factor=ipo?1.25+exitLevel*.06:clamp(.95+margin*.3-c.competition*.08+exitLevel*.05,.65,1.25);const offer={year:s.year,factor,value:exitValue(c,factor),status:ipo?'上市退出':'并购退出'};if(c.exitPolicy==='review'){c.exitOffer=offer;log(s,`${c.name} 收到${offer.status}报价，基金可回收 ${offer.value.toFixed(1)} 万；本年可接受，也可继续持有。`,'success');}else realize(s,c,offer.value,offer.status);}
  }
- if(s.year>=endYear(s)){for(const c of s.portfolio.filter(c=>c.status==='active'))realize(s,c,exitValue(c,terminalFactor(s,exitLevel)),'到期清算');s.deals=[];s.ended=true;log(s,`基金到期：${s.ruleset===12?'经营业务按估值的':'剩余股权按账面价值的'} ${Math.round(terminalFactor(s,exitLevel)*100)}% ${s.ruleset===12?'处置，现金按原额扣除债务后分配':'变现'}，薪酬停止续付。`,'success');}
+ if(s.year>=endYear(s)){for(const c of s.portfolio.filter(c=>c.status==='active'))realize(s,c,exitValue(c,c.capital?.public?.985:terminalFactor(s,exitLevel)),'到期清算');s.deals=[];s.ended=true;log(s,`${isContinuous(s)?'2050 年终局结算':'基金到期'}：${s.ruleset===12?'经营业务按估值的':'剩余股权按账面价值的'} ${Math.round(terminalFactor(s,exitLevel)*100)}% ${s.ruleset===12?'处置，现金按原额扣除债务后分配':'变现'}，薪酬停止续付。`,'success');}
  else{renewTeam(s);s.extraDeals=0;s.deals=newDeals(s);sourceDeals(s);log(s,`今年又送来 ${s.deals.length} 份项目材料。`);}
  record(s);return true;
 }
@@ -841,7 +996,7 @@ function decideExit(s,id,accept){
  (c.exitDecisions??=[]).push({year:s.year,accepted:accept,quote:o.value,dividends:c.dividendReceived,invested:c.invested,equity:c.equity,cashBefore,cashAfter:s.cash});record(s);return true;
 }
 function exitReview(c,year,proceeds=c.proceeds,status=c.status){
- const dividends=c.dividendReceived||0,years=Math.max(0,year-c.founded),rows=c.financialHistory.filter(r=>!r.opening&&r.year>c.founded),first=c.thesis?.revenue??c.financialHistory[0]?.revenue??c.revenue;
+ const dividends=c.dividendReceived||0,years=Math.max(0,year-c.founded),rows=c.financialHistory.filter(r=>!r.opening&&r.year>c.founded),first=c.thesis?.revenue??c.capital?.entryRevenue??c.financialHistory[0]?.revenue??c.revenue;
  return {year,status,years,invested:c.invested,proceeds,dividends,total:proceeds+dividends,profit:proceeds+dividends-c.invested,multiple:(proceeds+dividends)/c.invested,revenueStart:first,revenueEnd:c.revenue,funding:rows.reduce((n,r)=>n+r.financing+(r.acquisitionEquity||0),0),thesis:c.thesis?.kind||null};
 }
 
@@ -871,7 +1026,7 @@ function operatingStory(c,r,prev=c.financialHistory.at(-1)){
 function annualReview(s){
  if(s.year===1990)return [];const items=[];
  for(const c of s.portfolio){if(s.continuation&&s.year===2026&&c.founded<2026)continue;const r=c.financialHistory.at(-1),prev=c.financialHistory.at(-2),identity=companyIdentity(c);
-  if(c.status!=='active'){const x=c.exitReview;if(x?.year===s.year||c.liquidation?.year===s.year){const opening=c.status==='股权转让'?`持有 ${c.age} 年后，你提前转让了股权。`:c.status==='到期清算'?'基金期限到了，剩余股权按到期方案处置。':c.status==='失败清算'?'这笔投资进入清算。':'这份退出报价已经成交。';items.push({id:c.id,priority:9,action:'record',kind:'exit',title:`${c.name} · ${c.status}`,text:`${opening}累计投入 ${c.invested.toFixed(1)} 万，退出收回 ${c.proceeds.toFixed(1)} 万，另有历年分红 ${(c.dividendReceived||0).toFixed(1)} 万。${c.proceeds+(c.dividendReceived||0)>=c.invested?'这笔投资已结清。':'本金没能全部收回，账目已经归档。'}`});}continue;}
+  if(c.status!=='active'){const x=c.exitReview;if(x?.year===s.year||c.liquidation?.year===s.year){const opening=c.status==='股权转让'?`持有 ${c.age} 年后，你提前转让了股权。`:c.status==='到期清算'?(isContinuous(s)?'2050 年终局结算，剩余股权按最终方案处置。':'基金期限到了，剩余股权按到期方案处置。'):c.status==='失败清算'?'这笔投资进入清算。':'这份退出报价已经成交。';items.push({id:c.id,priority:9,action:'record',kind:'exit',title:`${c.name} · ${c.status}`,text:`${opening}累计投入 ${c.invested.toFixed(1)} 万，退出收回 ${c.proceeds.toFixed(1)} 万，另有历年分红 ${(c.dividendReceived||0).toFixed(1)} 万。${c.proceeds+(c.dividendReceived||0)>=c.invested?'这笔投资已结清。':'本金没能全部收回，账目已经归档。'}`});}continue;}
   if(r?.riskEvent)items.push({id:c.id,priority:10.5,action:'record',kind:'risk',title:c.name+' · '+r.riskEvent.title,text:r.riskEvent.text+' 企业现金 '+c.cash.toFixed(1)+' 万，后续请结合资金缺口、经营策略及退出报价决定。'});
   if(exitQuote(s,c.id))items.push({id:c.id,priority:10,action:'offer',kind:'offer',title:`${c.name} · 有一笔退出报价`,text:`对方愿意让基金收回 ${exitQuote(s,c.id).value.toFixed(1)} 万。买方等着今年答复，明年得重新谈。`});
   if(c.distress)items.push({id:c.id,priority:11,action:'workout',kind:'distress',title:`${c.name} · 偿债需要你决定`,text:`这笔债还没安排好。若今年不补上缺口，明年就得清算。`});
@@ -880,7 +1035,7 @@ function annualReview(s){
   else if(r?.year===s.year&&r.financing>0&&followRecords(c,s.year).length)items.push({id:c.id,priority:8.5,action:'record',kind:'milestone',followed:true,title:`${c.name} · 你跟了这一轮`,text:`这轮已按原比例跟投。当前持股 ${(c.equity*100).toFixed(1)}%，累计投入 ${c.invested.toFixed(1)} 万。企业本轮筹入 ${r.financing.toFixed(1)} 万。${fundingRemainder(r)}`});
   const caseInfo=companyCase(s,c.id);if(caseInfo?.offeredYear===s.year)items.push({id:c.id,priority:7.2,action:'board',kind:'board',title:`${c.name} · ${caseInfo.title}`,text:caseInfo.summary});
   const firstDouble=c.financialHistory.find(x=>!x.opening&&Number.isFinite(x.ownership)&&x.value*x.ownership>=(x.invested??c.invested)*2);if(firstDouble?.year===s.year)items.push({id:c.id,priority:8,action:'record',kind:'milestone',title:`${c.name} · 股权账面达到两倍投入`,text:`按本年结算时的估值与持股，股权价值曾达到当时投入的 ${(firstDouble.value*firstDouble.ownership/(firstDouble.invested??c.invested)).toFixed(2)} 倍。这是股权估值，还没有退出变现。`});
-  if(r?.year===s.year&&prev){const growth=(r.revenue/Math.max(.001,prev.revenue)-1)*100;const decision=r.strategy!==prev.strategy?(r.strategy==='defend'?'这是你转向保现金后的第一年。':r.strategy==='expand'?'这是你转向扩张后的第一年。':'今年回到均衡经营。'):'';const project=(c.rebuilds||[]).find(p=>p.events?.some(e=>e.year===s.year));
+  if(r?.year===s.year&&prev&&!r.opening){const growth=(r.revenue/Math.max(.001,prev.revenue)-1)*100;const decision=r.strategy!==prev.strategy?(r.strategy==='defend'?'这是你转向保现金后的第一年。':r.strategy==='expand'?'这是你转向扩张后的第一年。':'今年回到均衡经营。'):'';const project=(c.rebuilds||[]).find(p=>p.events?.some(e=>e.year===s.year));
    items.push({id:c.id,priority:r.cashFlow<0?7:Math.abs(growth)>10?6:2,action:'record',kind:'operating',title:`${c.name} · ${Math.abs(growth)<.05?'收入基本持平':(growth>=0?'收入增长 ':'收入回落 ')+Math.abs(growth).toFixed(1)+'%'}`,text:`${operatingStory(c,r,prev)}。${decision}${project&&!r.rebuildExpense&&!r.rebuildCapex?'你批准的'+rebuildTypes[project.type]+rebuildProgress(project)+'。':''}${r.market?.contraction?'今年行业需求也在收缩。':r.market?.lost>r.market?.won&&r.market?.to?.length?'今年走掉的客户，比新争取来的还多。':r.market?.won>(prev.market?.customers||Infinity)*.2&&r.market?.from?.length?'从 '+[...r.market.from].sort((a,b)=>b.count-a.count)[0].name+' 争到了 '+[...r.market.from].sort((a,b)=>b.count-a.count)[0].count+' 个客户。':''}`});}
  }
  const chosen=[],seen=new Set();let boards=0;for(const item of items.sort((a,b)=>b.priority-a.priority)){if(seen.has(item.id)||item.kind==='board'&&boards)continue;const operating=items.find(x=>x.id===item.id&&x.kind==='operating'),followed=items.find(x=>x.id===item.id&&x.followed);chosen.push({...item,text:[operating&&item!==operating?operating.text:'',followed&&item!==followed?followed.text:'',item.text].filter(Boolean).join(' ')});seen.add(item.id);if(item.kind==='board')boards++;if(chosen.length===4)break;}return chosen;
@@ -893,9 +1048,9 @@ function validExperience(c,year){
  if(c.round&&c.round.purpose!==undefined&&(typeof c.round.purpose!=='string'||c.round.purpose.length>100||!Number.isFinite(c.round.gap)||c.round.gap<0||!Number.isFinite(c.round.raise)||c.round.raise<0))return false;
  if(c.financialHistory?.some(r=>['deliveryPremium','hiringCost','coordinationCost','expansionOverhead','scaleOverhead'].some(k=>r[k]!==undefined&&(!Number.isFinite(r[k])||r[k]<0))))return false;
  if(c.financialHistory?.some(r=>r.invested!==undefined&&(!Number.isFinite(r.invested)||r.invested<=0)||r.story!==undefined&&(typeof r.story!=='string'||r.story.length>700)||r.ownership!==undefined&&(!Number.isFinite(r.ownership)||r.ownership<0||r.ownership>1)||r.fundingPlan&&(!['cash','overdue','buffer','gap'].every(k=>Number.isFinite(r.fundingPlan[k]))||r.fundingPlan.overdue<0||r.fundingPlan.buffer<0||r.fundingPlan.gap<0||typeof r.fundingPlan.purpose!=='string'||r.fundingPlan.purpose.length>100)))return false;
- if(c.exitDecisions!==undefined&&(!Array.isArray(c.exitDecisions)||c.exitDecisions.length>36||new Set(c.exitDecisions.map(d=>d?.year)).size!==c.exitDecisions.length||!c.exitDecisions.every(d=>d&&Number.isInteger(d.year)&&d.year<=year&&d.year>=c.founded&&typeof d.accepted==='boolean'&&['quote','dividends','invested','equity','cashBefore','cashAfter'].every(k=>Number.isFinite(d[k])&&d[k]>=0)&&d.equity<=1&&Math.abs(d.cashAfter-d.cashBefore-(d.accepted?d.quote:0))<1e-6)))return false;
+ if(c.exitDecisions!==undefined&&(!Array.isArray(c.exitDecisions)||c.exitDecisions.length>(c.capital?60:36)||new Set(c.exitDecisions.map(d=>d?.year)).size!==c.exitDecisions.length||!c.exitDecisions.every(d=>d&&Number.isInteger(d.year)&&d.year<=year&&d.year>=c.founded&&typeof d.accepted==='boolean'&&['quote','dividends','invested','equity','cashBefore','cashAfter'].every(k=>Number.isFinite(d[k])&&d[k]>=0)&&d.equity<=1&&Math.abs(d.cashAfter-d.cashBefore-(d.accepted?d.quote:0))<1e-6)))return false;
  if(c.boardCases?.some(b=>b.baseline&&(!['cash','revenue','cashFlow','share'].every(k=>Number.isFinite(b.baseline[k]))||b.baseline.share<0||b.baseline.share>1)))return false;
- if(c.boardCases!==undefined&&(!Array.isArray(c.boardCases)||c.boardCases.length>13||new Set(c.boardCases.map(x=>x?.key)).size!==c.boardCases.length||!c.boardCases.every(x=>x&&typeof x.key==='string'&&x.key.length<100&&Number.isInteger(x.year)&&x.year<=year&&Object.hasOwn(rebuildTypes,x.kind)&&['invest','wait','defend'].includes(x.choice))))return false;
+ if(c.boardCases!==undefined&&(!Array.isArray(c.boardCases)||c.boardCases.length>(c.capital?21:13)||new Set(c.boardCases.map(x=>x?.key)).size!==c.boardCases.length||!c.boardCases.every(x=>x&&typeof x.key==='string'&&x.key.length<100&&Number.isInteger(x.year)&&x.year<=year&&Object.hasOwn(rebuildTypes,x.kind)&&['invest','wait','defend'].includes(x.choice))))return false;
  return true;
 }
 
@@ -915,10 +1070,11 @@ function continueCampaign(s){
  log(s,'2026 年结案成绩已封存。以结算资金继续经营，新的投资期到 2050 年结束。','success');record(s);return true;
 }
 function valid(s){
- if(!s||s.ruleset!==undefined&&(s.ruleset!==12||s.version!==10)||![1,2,3,4,5,6,7,8,9,10].includes(s.version)||!Number.isInteger(s.year)||s.year<1990||s.year>endYear(s)||s.initial!==1000||typeof s.ended!=='boolean'||(s.year===endYear(s))!==s.ended||!Number.isInteger(s.seed)||s.seed<0||s.seed>4294967295)return false;
+ if(!s||s.campaign!==undefined&&(!s.campaign||s.campaign.version!==1||s.campaign.startYear!==1990||s.campaign.endYear!==2050||s.campaign.importedYear!==undefined&&(!Number.isInteger(s.campaign.importedYear)||s.campaign.importedYear<1990||s.campaign.importedYear>2050))||s.ruleset!==undefined&&(s.ruleset!==12||s.version!==10)||![1,2,3,4,5,6,7,8,9,10].includes(s.version)||!Number.isInteger(s.year)||s.year<1990||s.year>endYear(s)||s.initial!==1000||typeof s.ended!=='boolean'||(s.year===endYear(s))!==s.ended||!Number.isInteger(s.seed)||s.seed<0||s.seed>4294967295)return false;
+ if(s.campaign&&(s.campaign.backupKey!==undefined&&(typeof s.campaign.backupKey!=='string'||!/^longview-vc-save-v1-before-continuous-[0-9a-f]{1,8}-\d+$/.test(s.campaign.backupKey))||s.campaign.legacySettlement!==undefined&&typeof s.campaign.legacySettlement!=='boolean'))return false;
  if(!validContinuation(s))return false;
  if(!['cash','invested','returned','expenses'].every(k=>Number.isFinite(s[k])&&s[k]>=0)||Math.abs(s.cash-(s.initial-s.invested-s.expenses+s.returned))>.01)return false;
- if(!Array.isArray(s.portfolio)||s.portfolio.length>limits.portfolio+(s.continuation?168:0)||!Array.isArray(s.deals)||s.deals.length>limits.deals||!Array.isArray(s.logs)||s.logs.length>10000||!Array.isArray(s.history)||s.history.length>(s.continuation?61:37))return false;
+ if(!Array.isArray(s.portfolio)||s.portfolio.length>limits.portfolio+(s.continuation||isContinuous(s)?168:0)||!Array.isArray(s.deals)||s.deals.length>limits.deals||!Array.isArray(s.logs)||s.logs.length>10000||!Array.isArray(s.history)||s.history.length>(s.continuation||isContinuous(s)?61:37))return false;
  if(!s.logs.every(l=>l&&Number.isInteger(l.year)&&typeof l.text==='string')||!s.history.every(h=>h&&['year','nav','cash'].every(k=>Number.isFinite(h[k]))))return false;
  const all=[...s.deals,...s.portfolio];
  if(all.some(c=>!c||(s.ruleset===12?c.economyVersion!==12||!Number.isInteger(c.expansionStreak)||c.expansionStreak<0||c.expansionStreak>7:c.economyVersion!==undefined)))return false;if(new Set(all.map(c=>c?.id)).size!==all.length)return false;
@@ -929,8 +1085,8 @@ function valid(s){
   if(c.realProject!==undefined){const p=historicalProject(c);if(s.ruleset!==12||!p||c.name!==p.name||c.sector!==p.sector||s.year<p.year||c.status==='available'&&s.year!==p.year||c.founded!==undefined&&c.founded!==p.year)return false;}
   if(c.scenarioProject!==undefined){const p=scenarioProject(c);if(s.ruleset!==12||!p?.fictional||c.sector!==p.sector||s.year<p.year||c.status==='available'&&s.year!==p.year||c.founded!==undefined&&c.founded!==p.year)return false;}
   if(!validVentureRisk(c,s.year))return false;
-  if(!validExperience(c,s.year))return false;
-  if(s.version>=2){if(!['costs','profit','cashFlow','cash','capex','workingCapital','costRate','competition'].every(k=>Number.isFinite(c[k]))||!Object.hasOwn(strategies,c.strategy)||c.competition<0||c.competition>1||!Number.isInteger(c.profitYears)||!Number.isInteger(c.ddLevel)||c.ddLevel< -1||c.ddLevel>3||!Array.isArray(c.financialHistory)||c.financialHistory.length>38)return false;
+  if(!validExperience(c,s.year)||!validCapital(c,s.year)||isContinuous(s)!==!!c.capital)return false;
+  if(s.version>=2){if(!['costs','profit','cashFlow','cash','capex','workingCapital','costRate','competition'].every(k=>Number.isFinite(c[k]))||!Object.hasOwn(strategies,c.strategy)||c.competition<0||c.competition>1||!Number.isInteger(c.profitYears)||!Number.isInteger(c.ddLevel)||c.ddLevel< -1||c.ddLevel>3||!Array.isArray(c.financialHistory)||c.financialHistory.length>(isContinuous(s)?61:38))return false;
    if(!c.financialHistory.every(r=>r&&['year','revenue','costs','profit','cashFlow','cash','competition','value','variableCost','payrollCost','marketing','rnd','overhead','capex','workingCapital','financing','cashOpening'].every(k=>Number.isFinite(r[k]))&&typeof r.event==='string'))return false;
   }
  }
@@ -943,14 +1099,14 @@ function valid(s){
   if((!Number.isInteger(s.marketSeed)||s.marketSeed<0||s.marketSeed>4294967295)||!s.markets||typeof s.markets!=='object'||Array.isArray(s.markets)||Object.keys(s.markets).length>9)return false;
   const ids=new Set();let count=0;
   for(const [sector,m] of Object.entries(s.markets)){
-   if(!Object.hasOwn(profiles,sector)||m.sector!==sector||!Number.isInteger(m.year)||m.year>s.year||!Number.isFinite(m.growth)||!Number.isInteger(m.total)||m.total<1||m.total>1e10||!Number.isInteger(m.unserved)||m.unserved<0||!Number.isFinite(m.priceIndex)||m.priceIndex<=0||!Array.isArray(m.members)||m.members.length>limits.market+(s.continuation?168:0))return false;
+   if(!Object.hasOwn(profiles,sector)||m.sector!==sector||!Number.isInteger(m.year)||m.year>s.year||!Number.isFinite(m.growth)||!Number.isInteger(m.total)||m.total<1||m.total>1e10||!Number.isInteger(m.unserved)||m.unserved<0||!Number.isFinite(m.priceIndex)||m.priceIndex<=0||!Array.isArray(m.members)||m.members.length>limits.market+(s.continuation||isContinuous(s)?168:0))return false;
    let clients=m.unserved;
    for(const x of m.members){if(!x||(s.ruleset===12?x.economyVersion!==12||!Number.isInteger(x.expansionStreak)||x.expansionStreak<0||x.expansionStreak>7:x.economyVersion!==undefined))return false;count++;if(!x||typeof x.id!=='string'||ids.has(x.id)||typeof x.name!=='string'||x.name.length>250||x.sector!==sector||!Number.isInteger(x.customers)||x.customers<0||typeof x.failed!=='boolean'||(x.failed||x.acquiredBy)&&x.customers!==0||!Object.hasOwn(strategies,x.strategy)||!['unitPrice','basePrice','product',...memberKeys.filter(k=>k!=='strategy')].every(k=>Number.isFinite(x[k]))||x.unitPrice<=0||x.basePrice<=0||x.quality<0||x.quality>1)return false;if(!validVentureRisk(x,s.year))return false;ids.add(x.id);clients+=x.customers;}
    if(clients!==m.total)return false;
   }
-  if(count>limits.market+(s.continuation?168:0))return false;
-  for(const c of [...s.deals,...s.portfolio.filter(c=>c.status==='active')]){const x=s.markets[c.sector]?.members.find(x=>x.id===c.id);if(!x||x.failed||x.acquiredBy||!validMarketReport(c.market,limits.market+(s.continuation?168:0)))return false;}
-  for(const c of all){if(c.market&&!validMarketReport(c.market,limits.market+(s.continuation?168:0)))return false;for(const r of c.financialHistory)if(r.market&&!validMarketReport(r.market,limits.market+(s.continuation?168:0)))return false;}
+  if(count>limits.market+(s.continuation||isContinuous(s)?168:0))return false;
+  for(const c of [...s.deals,...s.portfolio.filter(c=>c.status==='active')]){const x=s.markets[c.sector]?.members.find(x=>x.id===c.id);if(!x||x.failed||x.acquiredBy||!validMarketReport(c.market,limits.market+(s.continuation||isContinuous(s)?168:0)))return false;}
+  for(const c of all){if(c.market&&!validMarketReport(c.market,limits.market+(s.continuation||isContinuous(s)?168:0)))return false;for(const r of c.financialHistory)if(r.market&&!validMarketReport(r.market,limits.market+(s.continuation||isContinuous(s)?168:0)))return false;}
  }
  if(s.version>=4){
   for(const c of all){
@@ -991,5 +1147,5 @@ function migrate(input){
  if(!valid(s))throw Error('旧档案暂时接不上，原件已保留');return s;
 }
 
-const api={endYear,futureEras,continueCampaign,limits,fictionalProjects,scenarioProjects,scenarioProject,riskBrief,historicalProjects,historicalProject,investmentTerms,expansionRun,followRecords,exitValue,terminalFactor,strategyOutlook,diligenceReport,investmentOutlook,exitQuote,fundingPlan,companyIdentity,companyCase,resolveCase,decideExit,exitReview,annualReview,allocationRates,dividendQuote,distribute,rebuildTypes,rebuildQuote,reinvest,cancelRebuild,currentRebuild,effectiveCapacity,divestQuote,divestBuyers,divest,liquidationQuote,liquidationBuyers,liquidate,sectors,profiles,roles,strategies,era,fresh,nav,research,invest,follow,sell,advance,valid,migrate,level,payroll,teamQuote,manageTeam,diligenceCost,stressProfit,score,setStrategy,saleFactor,supportIds,operate,fundamental,debtBalance,debtService,underPressure,workoutQuote,workout,compete,exitOdds,allocate,acquisitionQuote,acquisitionTargets,acquire};if(typeof module!=='undefined')module.exports=api;else root.VC=api;
+const api={isContinuous,createCampaign,toContinuous,campaignBackupKey,fundingStages,resourceQuote,listingVenues,listingQuote,applyListing,publicQuote,sellPublic,endYear,futureEras,continueCampaign,limits,fictionalProjects,scenarioProjects,scenarioProject,riskBrief,historicalProjects,historicalProject,investmentTerms,expansionRun,followRecords,exitValue,terminalFactor,strategyOutlook,diligenceReport,investmentOutlook,exitQuote,fundingPlan,companyIdentity,companyCase,resolveCase,decideExit,exitReview,annualReview,allocationRates,dividendQuote,distribute,rebuildTypes,rebuildQuote,reinvest,cancelRebuild,currentRebuild,effectiveCapacity,divestQuote,divestBuyers,divest,liquidationQuote,liquidationBuyers,liquidate,sectors,profiles,roles,strategies,era,fresh,nav,research,invest,follow,sell,advance,valid,migrate,level,payroll,teamQuote,manageTeam,diligenceCost,stressProfit,score,setStrategy,saleFactor,supportIds,operate,fundamental,debtBalance,debtService,underPressure,workoutQuote,workout,compete,exitOdds,allocate,acquisitionQuote,acquisitionTargets,acquire};if(typeof module!=='undefined')module.exports=api;else root.VC=api;
 })(typeof window!=='undefined'?window:globalThis);

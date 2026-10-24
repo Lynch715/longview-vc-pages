@@ -32,10 +32,10 @@ function createStorage(env){
     const tx=db.transaction('records','readwrite'),store=tx.objectStore('records');let conflict=false;
     if(once){const request=store.get(key);request.onsuccess=()=>{if(request.result!==undefined&&request.result!==raw){conflict=true;tx.abort();}else if(request.result===undefined)store.put(raw,key);};}
     else store.put(raw,key);
-    tx.oncomplete=resolve;tx.onabort=()=>reject(conflict?Error('已有不同的结局备份，原件已保留'):tx.error||Error('存档未能写入'));tx.onerror=()=>{};
+    tx.oncomplete=resolve;tx.onabort=()=>reject(conflict?Error('已有不同的档案备份，原件已保留'):tx.error||Error('存档未能写入'));tx.onerror=()=>{};
    });
    else{
-    const previous=env.localStorage.getItem(key);if(once&&previous&&previous!==raw)throw Error('已有不同的结局备份，原件已保留');
+    const previous=env.localStorage.getItem(key);if(once&&previous&&previous!==raw)throw Error('已有不同的档案备份，原件已保留');
     if(!once||!previous)env.localStorage.setItem(key,raw);
     if(env.localStorage.getItem(key)!==raw)throw Error('存档未能写入');
    }
@@ -46,8 +46,9 @@ function createStorage(env){
  async function init(){
   const raw=await read(KEY);
   // Preserve an old-format original before app.js performs any migration.
-  if(raw){let version;try{version=JSON.parse(raw).version;}catch{return;}
+  if(raw){let parsed,version;try{parsed=JSON.parse(raw);version=parsed.version;}catch{return;}
    if(Number.isInteger(version)&&version>=1&&version<10){const key=KEY+'-v'+version+'-backup';if(!await read(key))await write(key,raw,true);}
+   if(env.VC&&!env.VC.isContinuous(parsed)&&env.VC.valid(parsed)){const key=env.VC.campaignBackupKey(raw),existing=await read(key);if(existing&&existing!==raw)throw Error('接续前原件备份冲突');if(!existing)await write(key,raw,true);}
   }
  }
  return {init,read,getItem:key=>cache.has(key)?cache.get(key):env.localStorage.getItem(key),setItem:(key,raw)=>write(key,raw),writeOnce:(key,raw)=>write(key,raw,true),flush:()=>queue};
