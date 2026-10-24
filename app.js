@@ -208,8 +208,10 @@ function prepareCompanyArt(){
  if(changed&&projectArtCacheWritable&&!saveError)try{localStorage.setItem(PROJECT_ART_KEY,JSON.stringify([...choices]));}catch{/* A cosmetic cache never blocks financial saves or play. */}
 }
 function companyPicture(c,kind){
- const a=companyArtworkForView(c),x=a.index%a.cols,y=Math.floor(a.index/a.cols),className=kind==='card'?'venture-art':kind==='holding'?'portfolio-art':'dossier-art';
- return `<div class="${className} project-art" data-art="${a.key}" aria-hidden="true"><svg class="project-picture" viewBox="${x} ${y} 1 1" preserveAspectRatio="xMidYMid slice" focusable="false"><image href="${a.file}" width="${a.cols}" height="${a.rows}" preserveAspectRatio="none"/></svg>${kind==='card'?'<span>'+esc(c.sector)+'</span>':''}</div>`;
+ const a=companyArtworkForView(c),className=kind==='card'?'venture-art':kind==='holding'?'portfolio-art':'dossier-art',size=a.rows===4?362:418;
+ // Standalone WebP tiles avoid decoding a nine/twelve-scene atlas for one card.
+ // Hidden and offscreen cards use the browser's native lazy loading; a user-opened dossier loads immediately.
+ return `<div class="${className} project-art" data-art="${a.key}" aria-hidden="true"><img class="project-picture" src="art/scenes/${a.key}.webp" width="${size}" height="${size}" alt="" loading="${kind==='dossier'?'eager':'lazy'}" decoding="async" fetchpriority="${kind==='dossier'?'auto':'low'}">${kind==='card'?'<span>'+esc(c.sector)+'</span>':''}</div>`;
 }
 function companyRisk(c){
  const key=VC.historicalProject(c)?.key;
