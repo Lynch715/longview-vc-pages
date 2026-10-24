@@ -1,7 +1,7 @@
 {
-  "version": "0.23.0",
+  "version": "0.24.0",
   "files": {
-    "app.js": "c2038937a494b632fd471a6bf2e93c510dcfbd3802b8104a17ab572ba0ae7ec8",
+    "app.js": "42742dfc6f1dce47939d3d991d05932ea6b12af65adcbd2a5f345f372a8cf546",
     "art/industries.webp": "95758f41e7526755b0044c25d69e4a44e2188e9c6b4a016aee2fe44a615e32a3",
     "art/office-harbor-lite.webp": "a841188821eaa059db196c1a792fc741054b7bbab91d54b909d7bf7aeb1832e0",
     "art/office-harbor.webp": "ef557a9782c8daaa7758c9dc73e253224264fd57c2237e6457e11b2a62f952a3",
@@ -109,18 +109,20 @@
     "art/scenes/telecom-7.webp": "610a47ac070ccce243d9ec299351e80a82bf08287b6bcaa689ac2f5ca470c519",
     "art/scenes/telecom-8.webp": "2796f56157e0b91d93b516edb83b050819767497a7f52f46af1a40757ed52881",
     "desk.css": "df00b1bd3080c0b177baa7c562003d58c22f91a6ba9333f123dbd4873b660870",
-    "engine.js": "99a9f939ef1e39ef23bcda550bec285e7c8960e84f0fb46bd0ad7e475771b4de",
+    "engine.js": "69eb8919d7a9eab0fde20dea025cd49775ce497b4292da30f27a14988cfb8685",
     "favicon.ico": "54e8db7ace63f57654cdf26f9820244cbf69df6949eb3cae9c94c21d588b1cd5",
     "icon-192.png": "94775a585f1860e81e48128b5a3873cb0431d5fdf07f7003da365bd41305b321",
     "icon-32.png": "ab0eb059bda3808f5ae854ea3384a7ebf022c3ec816326d9fc5cbfd54473cab0",
     "icon-512.png": "315330d1222aeee86df46ecdc0c123735ea61cbf821cd52be018341477d8953d",
     "icon-maskable-512.png": "77f43cc3604c7ebb4845e1db9e3cacd9d958f51693473a4a4aa3afe465adb324",
     "icon.svg": "793c4ef7e0e2d2072d8a9839c7b7f9d3b15939b2f896a4cce37d2e2e7000e310",
-    "index.html": "85d365ef12d07e2d9c99d4a651bf9a03cac9766a73a5521e06f9955e24ee7088",
+    "index.html": "6bbe7a5b37086663bfa48c1327c91265ddbdc3e4a383caab772cec098049a3fc",
+    "loader.js": "a0b6806d06e62866e65846704ab17ac9f0ba599e0dc33258ef1cd654a3153cc6",
     "manifest.webmanifest": "fead8644e6803d6cda1559aba19dea8ddd424150503a67edcf7d4890b58999bd",
     "office-city.webp": "97186b98d64b3414d94173d839d4ca738b5e78d84c93fec40dd9b19fecaca77e",
     "office.css": "fb896f9c4813188e5d4ce3a874e7483fbc314cb3ab3133e1ff1b192ff0eeccb6",
     "palette.css": "dc648e8e7a43d8b7161eea374da28aa4361ed9ee26509d687b4c7a0064c7c238",
+    "storage.js": "bd49a265ab814687e73264e964dab031bb19e0bac30d7e5d42aaafef93db01df",
     "style.css": "1af16cf85063bfc132b2a8609f0348a150458cc75a156b8ba28a67480d65c45b",
     "touch.js": "60771110b1783dc36f0b26373ecb6b23f0a9dfb53691d8e7eccd03e4911b4ac8"
   }
