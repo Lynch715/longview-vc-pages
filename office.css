@@ -75,3 +75,17 @@ footer{max-width:1740px;color:#b8b99e;font-size:10px;padding:20px max(20px,var(-
  .history-row p{font-size:13px}.side-title small{font-size:10px}
  .venture-art>span{font-size:11px;writing-mode:vertical-rl;left:auto;right:8px;bottom:10px;padding:6px 4px;background:#10251ce8;border:1px solid #c8ad7177}
 }
+
+/* Each company keeps its own illustrated business scene across every view. */
+.project-art{position:relative;overflow:hidden;background:#344b3b;background-image:none}
+.project-picture{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:hidden;pointer-events:none}
+.project-art>span{position:absolute;z-index:1}
+.portfolio-top{display:grid;grid-template-columns:88px minmax(0,1fr) auto;gap:15px;align-items:center}
+.portfolio-art{width:88px;height:88px;border:3px double #a68b53;box-shadow:0 2px 5px #35270c26}
+.portfolio-identity{min-width:0}.portfolio-top>.status-tag{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:700px), (max-width:1000px) and (max-height:500px){
+ .portfolio-top{grid-template-columns:66px minmax(0,1fr);gap:7px 12px;align-items:start}
+ .portfolio-art{width:66px;height:100%;min-height:86px;grid-row:1/span 2}
+ .portfolio-top>.status-tag{grid-column:2;justify-self:start;margin-left:0}
+ .portfolio-identity h3{margin-bottom:4px}
+}
