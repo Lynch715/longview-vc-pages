@@ -364,7 +364,13 @@ function diligenceReport(c){
  const stressed=revenue=>{const trial={...c,team:plannedTeam(c,revenue,'balanced'),strategy:'balanced'};return revenue-costs(trial,revenue,0,0,c.team).total-revenue*profiles[c.sector].capex;};
  return {referenceValue:fundamental(c,era(c.financialHistory[0]?.year??1990)),qualityLow:low,qualityHigh:high,base,expand,stressCashFlow:stressed(c.revenue*.8),deliveryLow:c.revenue/Math.max(1,c.team*(11+high*9)*effectiveCapacity(c)),deliveryHigh:c.revenue/Math.max(1,c.team*(11+low*9)*effectiveCapacity(c)),askingRevenue:c.value/Math.max(1,c.revenue),retentionLow:.7+low*.18,retentionHigh:.7+high*.18};
 }
-function investmentOutlook(s,id,amount){const c=s.deals.find(c=>c.id===id);if(!c||!investmentTerms(c).amounts.includes(amount))return null;const follow=s.portfolio.filter(x=>x.status==='active'&&x.round).reduce((n,x)=>n+x.round.cost,0),reserve=10+payroll(s)+follow;const terms=investmentTerms(c),equity=amount/(c.value+amount),p=scenarioProject(c),reason=s.ended?'基金已结束':c.status!=='available'?'这笔机会已不在融资中':p&&s.year!==p.year?'本次融资窗口已经结束':equity>terms.maxEquity+1e-8?'超过本项目本轮持股上限':s.cash<amount?'基金现金不足':'';return {ok:!reason,reason,cashAfter:s.cash-amount,reserve,follow,equity,cashShare:amount/Math.max(1,s.cash),shortfall:Math.max(0,reserve-s.cash+amount)};}
+function investmentOutlook(s,id,amount){
+ const c=s.deals.find(c=>c.id===id);if(!c)return null;const terms=investmentTerms(c,s);if(!terms.amounts.includes(amount))return null;
+ const follow=s.portfolio.filter(x=>x.status==='active'&&x.round).reduce((n,x)=>n+x.round.cost,0),reserve=10+payroll(s)+follow;
+ const equity=amount/(c.value+amount),p=scenarioProject(c),large=!!terms.scaled&&amount>200,shortfall=Math.max(0,reserve-s.cash+amount);
+ const reason=s.ended?'基金已结束':c.status!=='available'?'这笔机会已不在融资中':p&&s.year!==p.year?'本次融资窗口已经结束':equity>terms.maxEquity+1e-8?'超过本项目本轮持股上限':s.cash<amount?'基金现金不足':large&&shortfall>1e-7?'大额认购后不足以覆盖已知跟投与下期运营储备':'';
+ return {ok:!reason,reason,cashAfter:s.cash-amount,reserve,follow,equity,cashShare:amount/Math.max(1,s.cash),fundShare:amount/Math.max(1,nav(s)),shortfall,large};
+}
 
 // Shared industry customer pools. Market RNG is separate from fund RNG and iteration order.
 const incumbentNames={
@@ -597,7 +603,16 @@ function validVentureRisk(c,year){
  return !!p&&r.version===1&&Number.isFinite(r.exposure)&&r.exposure>=.05&&r.exposure<=.95&&Number.isInteger(r.collectionDays)&&r.collectionDays>=25&&r.collectionDays<=150&&Number.isFinite(r.burnRate)&&r.burnRate>=.015&&r.burnRate<=.18&&Number.isFinite(r.receivables)&&r.receivables>=0&&Array.isArray(r.events)&&r.events.length<=2&&new Set(r.events.map(e=>e?.year)).size===r.events.length&&r.events.every(e=>e&&Number.isInteger(e.year)&&e.year>p.year&&e.year<=year&&typeof e.title==='string'&&e.title.length<150&&typeof e.text==='string'&&e.text.length<600&&typeof e.historical==='boolean'&&['expense','frozen','severity'].every(k=>Number.isFinite(e[k])&&e[k]>=0)&&e.severity<=3&&(!e.historical||e.year===p.crisisYear))&&(c.financialHistory||[]).every(row=>['riskExpense','riskFrozen','riskRecovered','riskReceivables','riskSeverity'].every(k=>row[k]===undefined||Number.isFinite(row[k])&&row[k]>=0));
 }
 
-function investmentTerms(c){const p=scenarioProject(c);return {amounts:p?[...p.amounts]:[50,100,200],minimum:p?p.amounts[0]:50,maxEquity:p?p.maxEquity:1};}
+function investmentTerms(c,s){
+ const p=scenarioProject(c);if(p)return {amounts:[...p.amounts],minimum:p.amounts[0],maxEquity:p.maxEquity};
+ const amounts=[50,100,200];if(!s||s.ruleset!==12)return {amounts,minimum:50,maxEquity:1};
+ // Only new subscriptions change. Quotes never mutate projects, saved accounts or RNG.
+ // Retain small tickets; larger ones use at most 20% of NAV and one third post-money ownership.
+ const fundLimit=Math.max(0,nav(s))*.2,projectLimit=Math.max(0,c.value)*.5;
+ const largeLimit=Math.floor(Math.min(fundLimit,projectLimit)/50)*50;
+ if(largeLimit>200)for(const fraction of [.25,.5,1]){const n=Math.floor(largeLimit*fraction/50)*50;if(n>200&&!amounts.includes(n))amounts.push(n);}
+ return {amounts,minimum:50,maxEquity:1,scaled:true,largeLimit,fundLimit,projectLimit};
+}
 function newDeals(s){
  const used=usedCompanyNames(s),deals=Array.from({length:4},(_,i)=>deal(s,i,used));
  if(s.ruleset===12)for(const p of scenarioProjects.filter(p=>p.year===s.year)){
