@@ -89,3 +89,15 @@ footer{max-width:1740px;color:#b8b99e;font-size:10px;padding:20px max(20px,var(-
  .portfolio-top>.status-tag{grid-column:2;justify-self:start;margin-left:0}
  .portfolio-identity h3{margin-bottom:4px}
 }
+
+/* Bound illustration rendering to native pixels; do not stretch square art into a wide banner. */
+.dossier-art.project-art{height:min(176px,calc(var(--art-native,362px)/var(--art-density,2)));background:linear-gradient(90deg,#203b30,#4a6047 50%,#203b30)}
+.dossier-art .project-picture{object-fit:contain}
+.project-art.art-failed>.project-picture{visibility:hidden}
+.art-retry[hidden]{display:none}
+.art-retry{position:absolute;z-index:3;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(100% - 12px);max-width:160px;min-height:44px;padding:7px 3px;white-space:normal;line-height:1.5;font-size:11px}
+.art-retry span,.art-retry b{display:block}.art-retry:active{transform:translate(-50%,-50%)}
+/* Reserve the application area before the saved campaign is parsed and rendered. */
+#app{min-height:calc(var(--view-height,100vh) - 80px)}
+.venture-art.project-art,.portfolio-art.project-art{background:linear-gradient(180deg,#21392e,#405943,#20372c)}
+.venture-art .project-picture,.portfolio-art .project-picture{width:min(100%,calc(var(--art-native,362px)/var(--art-density,2)));height:min(100%,calc(var(--art-native,362px)/var(--art-density,2)));left:50%;top:50%;right:auto;bottom:auto;transform:translate(-50%,-50%)}
