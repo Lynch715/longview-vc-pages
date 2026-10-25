@@ -1,7 +1,7 @@
 {
-  "version": "0.28.1",
+  "version": "0.28.2",
   "files": {
-    "app.js": "d216f30bcb15799d0cd2e508e6941986da3e5e6fdb2a6e0177058f6f1b3f1b5e",
+    "app.js": "afebff7c3a4b74960e354d525bdd35e0f3fa6005cb9c953be1852c9200c67e81",
     "art/industries.webp": "95758f41e7526755b0044c25d69e4a44e2188e9c6b4a016aee2fe44a615e32a3",
     "art/office-harbor-lite.webp": "a841188821eaa059db196c1a792fc741054b7bbab91d54b909d7bf7aeb1832e0",
     "art/office-harbor.webp": "ef557a9782c8daaa7758c9dc73e253224264fd57c2237e6457e11b2a62f952a3",
@@ -128,7 +128,7 @@
     "art/sectors/semiconductor-2.svg": "542a7b2d74a00f80068fb16540ebc1c1c150f631a14363fcea2a4923e27d57ca",
     "capital.css": "80777494b86c8fee6754a2a885cdf1c9212d8b1a39673a9338dac5834a6ce522",
     "desk.css": "df00b1bd3080c0b177baa7c562003d58c22f91a6ba9333f123dbd4873b660870",
-    "engine.js": "6e01bbb49ecbc693e496954f6534a8cf8c24e6bd192630af19300b604a39eca6",
+    "engine.js": "a77dc79360c79ca1f0d7919f457aa1ffd1a59303fdc6286c8f38b5094709ec2e",
     "expansion.css": "0c657d83fadd426f51f7862a37912aa411c14f5ed984a4efd4fb363bb0a89fef",
     "favicon.ico": "54e8db7ace63f57654cdf26f9820244cbf69df6949eb3cae9c94c21d588b1cd5",
     "icon-192.png": "94775a585f1860e81e48128b5a3873cb0431d5fdf07f7003da365bd41305b321",
@@ -136,7 +136,7 @@
     "icon-512.png": "315330d1222aeee86df46ecdc0c123735ea61cbf821cd52be018341477d8953d",
     "icon-maskable-512.png": "77f43cc3604c7ebb4845e1db9e3cacd9d958f51693473a4a4aa3afe465adb324",
     "icon.svg": "793c4ef7e0e2d2072d8a9839c7b7f9d3b15939b2f896a4cce37d2e2e7000e310",
-    "index.html": "b6e5230549b6ec8d8a2a38736f7d74f5ff797ca69aa520aea5db4d896d5907e9",
+    "index.html": "03e72fcfd4c941151da06ad96fc13c8a503bf6e061ffe89a0384b6bb8f866cd8",
     "loader.js": "a0b6806d06e62866e65846704ab17ac9f0ba599e0dc33258ef1cd654a3153cc6",
     "manifest.webmanifest": "fead8644e6803d6cda1559aba19dea8ddd424150503a67edcf7d4890b58999bd",
     "office-city.webp": "97186b98d64b3414d94173d839d4ca738b5e78d84c93fec40dd9b19fecaca77e",
