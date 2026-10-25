@@ -1,7 +1,7 @@
 {
   "version": "0.28.0",
   "files": {
-    "app.js": "fc1338bb012eae83536daf56743ef9a17b72a134ea445be6e577adb8b04d2ba0",
+    "app.js": "ff993149364f24d3f336489b038588e89edef54d3425c5f416210d9c9b25f6bd",
     "art/industries.webp": "95758f41e7526755b0044c25d69e4a44e2188e9c6b4a016aee2fe44a615e32a3",
     "art/office-harbor-lite.webp": "a841188821eaa059db196c1a792fc741054b7bbab91d54b909d7bf7aeb1832e0",
     "art/office-harbor.webp": "ef557a9782c8daaa7758c9dc73e253224264fd57c2237e6457e11b2a62f952a3",
@@ -136,7 +136,7 @@
     "icon-512.png": "315330d1222aeee86df46ecdc0c123735ea61cbf821cd52be018341477d8953d",
     "icon-maskable-512.png": "77f43cc3604c7ebb4845e1db9e3cacd9d958f51693473a4a4aa3afe465adb324",
     "icon.svg": "793c4ef7e0e2d2072d8a9839c7b7f9d3b15939b2f896a4cce37d2e2e7000e310",
-    "index.html": "cfefe649df137e36d89188b8359c4597054be30f6e606f175c98957bf16989cf",
+    "index.html": "b5b233b73fd6762b3a832e3b7753276a2ffee3965023dc6a1954198c29a63678",
     "loader.js": "a0b6806d06e62866e65846704ab17ac9f0ba599e0dc33258ef1cd654a3153cc6",
     "manifest.webmanifest": "fead8644e6803d6cda1559aba19dea8ddd424150503a67edcf7d4890b58999bd",
     "office-city.webp": "97186b98d64b3414d94173d839d4ca738b5e78d84c93fec40dd9b19fecaca77e",
