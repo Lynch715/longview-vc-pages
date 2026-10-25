@@ -48,7 +48,8 @@ function createStorage(env){
   // Preserve an old-format original before app.js performs any migration.
   if(raw){let parsed,version;try{parsed=JSON.parse(raw);version=parsed.version;}catch{return;}
    if(Number.isInteger(version)&&version>=1&&version<10){const key=KEY+'-v'+version+'-backup';if(!await read(key))await write(key,raw,true);}
-   if(env.VC&&!env.VC.isContinuous(parsed)&&env.VC.valid(parsed)){const key=env.VC.campaignBackupKey(raw),existing=await read(key);if(existing&&existing!==raw)throw Error('接续前原件备份冲突');if(!existing)await write(key,raw,true);}
+   if(env.VC&&(!env.VC.isContinuous(parsed)||!env.VC.expanded?.(parsed))&&env.VC.valid(parsed)){const key=env.VC.campaignBackupKey(raw),existing=await read(key);if(existing&&existing!==raw)throw Error('接续前原件备份冲突');if(!existing)await write(key,raw,true);}
+   if(env.VC?.quarterBackupKey&&!env.VC.quarterly(parsed)&&env.VC.valid(parsed)){const key=env.VC.quarterBackupKey(raw),existing=await read(key);if(existing&&existing!==raw)throw Error('季度损益升级前原件备份冲突');if(!existing)await write(key,raw,true);}
   }
  }
  return {init,read,getItem:key=>cache.has(key)?cache.get(key):env.localStorage.getItem(key),setItem:(key,raw)=>write(key,raw),writeOnce:(key,raw)=>write(key,raw,true),flush:()=>queue};
