@@ -1,0 +1,21 @@
+/* v0.28.4 visual polish. Loads last; layout, colours and artwork stay as designed. */
+
+/* Figures line up in tables, metric tiles and ledgers. */
+body{font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+/* Slightly darker secondary text on paper surfaces now that small text is larger. */
+:root{--muted:#4f6159}
+
+/* Focus ring: brass on dark wood and green panels, ink-blue on paper. Visible only for keyboard focus. */
+.topbar :focus-visible,.desk-rail :focus-visible,.dialog-bar :focus-visible,.tabs :focus-visible,.desk-hero :focus-visible,.era :focus-visible{outline:3px solid #e2bd6a;outline-offset:2px}
+dialog :focus:not(:focus-visible){outline:none}
+
+/* Unavailable actions read as unavailable without becoming illegible. */
+button:disabled,button[disabled]{opacity:1;color:#7d877f;background:repeating-linear-gradient(135deg,#efeadc 0 6px,#e8e2d2 6px 12px);border-style:dashed;border-color:#b9b39f;box-shadow:none;cursor:not-allowed}
+.primary:disabled,.advance:disabled{color:#e9efe9;background:repeating-linear-gradient(135deg,#6f8a80 0 6px,#678177 6px 12px);border-color:#5e776d}
+
+/* Comfortable reading measure for paragraphs inside cards and dialogs. */
+#modal-content p,.portfolio-row p,.deal p{line-height:1.7}
+
+/* Numbers in metric tiles get a touch more weight so they read before their labels. */
+.metric-value,.numbers b,.portfolio-data b{letter-spacing:-.01em}

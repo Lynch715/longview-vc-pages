@@ -182,7 +182,9 @@ function distribute(s,id,payout=.5,repay=0){
  const text=`${c.name} · 利润分配：全体股东分红 ${q.dividend.toFixed(1)} 万，基金按 ${(q.equity*100).toFixed(1)}% 持股收到 ${q.fundProceeds.toFixed(1)} 万；提前还本 ${q.principal.toFixed(1)} 万，可安排资金留存 ${q.retained.toFixed(1)} 万。企业剩余现金 ${c.cash.toFixed(1)} 万，持股不变。`;
  c.notes.push(`${s.year} 年 ${text}`);log(s,text,'success');record(s);return true;
 }
-function validDividends(c,year,deadline=2026){
+// Quarterly saves move an allocation from pending fields into the current year's monthly/quarterly statements.
+function bookedAllocation(c,year,key){const b=c.capital?.extension?.quarterly;if(!b)return 0;return [...(Array.isArray(b.yearRows)?b.yearRows:[]),...(Array.isArray(b.months)?b.months:[])].filter(r=>r&&r.year===year||r&&Number.isInteger(r.month)&&Math.floor(r.month/12)===year).reduce((n,r)=>n+(Number.isFinite(r[key])?r[key]:0),0);}
+function validDividends(c,year,deadline=2026,monthly=false){
  const near=(a,b)=>Math.abs(a-b)<1e-6*Math.max(1,Math.abs(a),Math.abs(b));
  if(!Array.isArray(c.dividends)||c.dividends.length>(c.capital?60:36)||!['dividendReceived','pendingDividend','pendingAllocationPrincipal'].every(k=>Number.isFinite(c[k])&&c[k]>=0)||!(c.dividendYear===null||Number.isInteger(c.dividendYear)&&c.dividendYear>=1990&&c.dividendYear<=year))return false;
  let prev=1989;for(const a of c.dividends){
@@ -190,7 +192,7 @@ function validDividends(c,year,deadline=2026){
   if(!near(a.reserve,a.operatingReserve+a.service+a.contingency+(a.integrationReserve||0))||!near(a.pool,Math.max(0,a.repaymentOnly?a.cashBefore-a.reserve:Math.min(a.earnings,a.stableCash,a.cashBefore-a.reserve)))||!near(a.dividend,a.pool*a.payout)||!near(a.principal,Math.min(a.debtBefore,a.pool*a.repay))||!near(a.pool,a.dividend+a.principal+a.retained)||!near(a.fundProceeds,a.dividend*a.equity)||!near(a.dividend,a.fundProceeds+a.otherProceeds)||!near(a.cashBefore,a.cashAfter+a.dividend+a.principal)||!near(a.debtBefore,a.debtAfter+a.principal)||!near(a.valueAfter,Math.max(0,a.valueBefore-a.dividend))||!a.payments.every(x=>x&&typeof x.id==='string'&&c.loans.some(l=>l.id===x.id)&&Number.isFinite(x.paid)&&x.paid>=0)||!near(a.principal,a.payments.reduce((n,x)=>n+x.paid,0)))return false;
   prev=a.year;
  }
- const last=c.dividends.at(-1);return c.dividendYear===(last?.year??null)&&near(c.dividendReceived,c.dividends.reduce((n,a)=>n+a.fundProceeds,0))&&near(c.pendingDividend,c.status==='active'&&last?.year===year?last.dividend:0)&&near(c.pendingAllocationPrincipal,c.status==='active'&&last?.year===year?last.principal:0);
+ const last=c.dividends.at(-1);return c.dividendYear===(last?.year??null)&&near(c.dividendReceived,c.dividends.reduce((n,a)=>n+a.fundProceeds,0))&&(near(c.pendingDividend,c.status==='active'&&last?.year===year?last.dividend:0)&&near(c.pendingAllocationPrincipal,c.status==='active'&&last?.year===year?last.principal:0)||monthly&&c.status==='active'&&last?.year===year&&near(c.pendingDividend,0)&&near(c.pendingAllocationPrincipal,0)&&bookedAllocation(c,year,'dividend')+1e-6>=last.dividend&&bookedAllocation(c,year,'allocationPrincipal')+1e-6>=last.principal);
 }
 
 const rebuildTypes={rnd:'研发升级',capacity:'产能重建',market:'客户拓展'};
@@ -1216,7 +1218,7 @@ function valid(s){
   for(const a of c.workouts)if(a.successRate!==undefined&&(!quarterly(s)||a.mode!=='rescue'||!Number.isInteger(a.month)||a.month<a.year*12||a.month>a.year*12+11||!Number.isFinite(a.successRate)||a.successRate<.08||a.successRate>.30||typeof a.success!=='boolean'||!Number.isFinite(a.restructuringCost)||Math.abs(a.restructuringCost-a.raise*(a.success?.08:.5))>1e-6||a.resolved!==a.success))return false;
   for(const r of c.financialHistory)if(['rescueEquity','workoutFee','noncashFee','debtConversion'].some(k=>r[k]!==undefined&&(!Number.isFinite(r[k])||r[k]<0)))return false;
  }
- if(s.version>=10){if(!Number.isFinite(s.dividends)||s.dividends<0||s.dividends>s.returned+1e-7||all.some(c=>!validDividends(c,s.year,endYear(s)))||Math.abs(s.dividends-s.portfolio.reduce((n,c)=>n+c.dividendReceived,0))>1e-6)return false;for(const c of all)for(const r of c.financialHistory)if(['dividend','allocationPrincipal'].some(k=>r[k]!==undefined&&(!Number.isFinite(r[k])||r[k]<0)))return false;}
+ if(s.version>=10){if(!Number.isFinite(s.dividends)||s.dividends<0||s.dividends>s.returned+1e-7||all.some(c=>!validDividends(c,s.year,endYear(s),quarterly(s)))||Math.abs(s.dividends-s.portfolio.reduce((n,c)=>n+c.dividendReceived,0))>1e-6)return false;for(const c of all)for(const r of c.financialHistory)if(['dividend','allocationPrincipal'].some(k=>r[k]!==undefined&&(!Number.isFinite(r[k])||r[k]<0)))return false;}
  if(s.version>=9){if(all.some(c=>!validRebuild(c,s.year,endYear(s))))return false;for(const m of Object.values(s.markets))for(const x of m.members)if(['capacityRecovery','technologyBonus','marketReach','rebuiltCapital','rebuildOverhead'].some(k=>x[k]!==undefined&&(!Number.isFinite(x[k])||x[k]<0)))return false;for(const c of all)for(const r of c.financialHistory)if(['rebuildExpense','rebuildCapex'].some(k=>r[k]!==undefined&&(!Number.isFinite(r[k])||r[k]<0)))return false;}
  if(s.version>=8){if(all.some(c=>!validDivest(c,s.year,endYear(s))))return false;for(const m of Object.values(s.markets))for(const x of m.members)if(['assetRetention','overheadRetention'].some(k=>x[k]!==undefined&&(!Number.isFinite(x[k])||x[k]<0||x[k]>1)))return false;for(const c of all)for(const r of c.financialHistory)if(['divestPrice','divestFee','divestPrincipal','divestRevenue'].some(k=>r[k]!==undefined&&(!Number.isFinite(r[k])||r[k]<0)))return false;}
  if(s.version>=7&&all.some(c=>!validLiquidation(c,s.year)))return false;
