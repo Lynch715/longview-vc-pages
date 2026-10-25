@@ -107,7 +107,8 @@ function workoutQuote(s,id,mode,amount=null){
  if(!['extend','convert','rescue'].includes(mode))return {ok:false,reason:'这份处置方案不能办理'};
  const debt=debtBalance(c),due=debtDue(c),buffer=Math.max(20,Math.max(0,-c.cashFlow)*.5)+debtService(c),pre=Math.max(1,c.value*.65),ceil=n=>Math.ceil(n*10)/10;
  let fee=0,raise=0,converted=0,afterDebt=debt,afterEquity=c.equity,afterCash=c.cash,service=debtService(c),changes=[],principal=0;
- const minimum=ceil(Math.max(0,buffer+due-c.cash)/.98);
+ const riskyRescue=quarterly(s)&&mode==='rescue'&&!!c.distress,successRate=riskyRescue?clamp(.08+c.quality*.18+level(s,'operations')*.015-Math.min(.08,debt/Math.max(1,c.revenue)*.02)-Math.min(.06,creditLeverage(c)*.005),.08,.30):null;
+ const minimum=ceil(Math.max(0,buffer+due-c.cash)/(riskyRescue?.90:.98));
  let reason=!underPressure(c)?'企业现有现金能覆盖经营和下期本息，暂时用不着救助':mode!=='rescue'&&c.workoutYear===s.year?'今年已经谈过一次债务；若还缺钱，只能再由基金注资':mode==='rescue'&&c.rescueYear===s.year?'今年基金已经救助过一次，不能再追加':'';
  if(mode==='extend'){
   for(const l of c.loans){const remaining=Math.min(l.remaining+2,endYear(s)-s.year);if(l.balance>1e-7&&!l.defaulted&&!(l.extensions||0)&&remaining>l.remaining){const charge=ceil(l.balance*.02);changes.push({id:l.id,fee:charge,remaining,rate:Math.min(.24,l.rate+.02),maturity:s.year+remaining});fee+=charge;}}
@@ -118,13 +119,13 @@ function workoutQuote(s,id,mode,amount=null){
   if(c.quality<.35&&!reason)reason='债权人看过企业的经营情况，不愿用债权换股权';
   fee=ceil(debt*.02);converted=debt;afterDebt=0;afterEquity=c.equity*pre/(pre+debt+fee);service=0;
  }else{
-  raise=amount===null?minimum:amount;fee=raise*.02;principal=Math.min(due,Math.max(0,c.cash+raise-fee));afterCash=c.cash+raise-fee-principal;afterDebt-=principal;afterEquity=(c.equity*pre+raise)/(pre+raise);
+  raise=amount===null?minimum:amount;fee=raise*.02;principal=Math.min(due,Math.max(0,c.cash+raise-fee));afterCash=c.cash+raise-fee-(riskyRescue?raise*.08:0)-principal;afterDebt-=principal;afterEquity=(c.equity*pre+raise)/(pre+raise);
   if((!Number.isFinite(raise)||raise<=0||raise+1e-7<minimum)&&!reason)reason='这笔钱还不够还到期本金、付费用并留出周转金';
   if(raise>s.cash+1e-7&&!reason)reason='基金账上不够，接不下这笔救助';
   let toPay=principal;service=c.loans.reduce((n,l)=>{const paid=Math.min(l.due,toPay);toPay-=paid;return n+(l.defaulted?0:Math.max(0,l.balance-paid)*(l.rate+1/Math.max(1,l.remaining)));},0);
  }
  const remainingDue=mode==='extend'?c.loans.filter(l=>!changes.some(x=>x.id===l.id)).reduce((n,l)=>n+l.due,0):mode==='convert'?0:Math.max(0,due-principal);
- return {ok:!reason,reason,mode,id,fee,raise,converted,debt,afterDebt,due,principal,minimum,pre,afterEquity,equity:c.equity,cash:c.cash,afterCash,service,changes,remainingDue,resolves:afterCash>0&&remainingDue<=1e-7};
+ return {ok:!reason,reason,mode,id,fee,raise,...(riskyRescue?{riskyRescue:true,successRate,successCost:raise*.08,failureCost:raise*.5}:{}),converted,debt,afterDebt,due,principal,minimum,pre,afterEquity,equity:c.equity,cash:c.cash,afterCash,service,changes,remainingDue,resolves:afterCash>0&&remainingDue<=1e-7};
 }
 function workout(s,id,mode,amount=null){
  const q=workoutQuote(s,id,mode,amount);if(!q.ok)return false;const c=s.portfolio.find(c=>c.id===id),fundBefore=s.cash;
@@ -133,11 +134,22 @@ function workout(s,id,mode,amount=null){
  if(mode==='rescue'){s.cash=Math.max(0,s.cash-q.raise);s.invested+=q.raise;c.invested+=q.raise;c.cash+=q.raise-q.fee;c.pendingRescueEquity+=q.raise;c.pendingRescuePrincipal+=payPrincipal(c);c.rescueYear=s.year;}
  else{c.workoutYear=s.year;c.pendingNoncashFee+=q.fee;}
  c.pendingWorkoutFee+=q.fee;c.pendingDebtConversion+=q.converted;if(c.capital?.public||c.capital?.extension){adjustLocks(c,mode==='rescue'?q.pre/(q.pre+q.raise):c.equity?q.afterEquity/c.equity:1);if(mode==='rescue')addPublicLock(c,q.raise/(q.pre+q.raise),Math.min(2050,s.year+1),expanded(s)?Math.min(2050*12,capitalClock(s)+12):null);}c.equity=q.afterEquity;c.round=null;
- if(q.resolves)c.distress=null;
+ let rescueSucceeded=null;
+ if(q.riskyRescue){
+  rescueSucceeded=marketRandom(s,c.id+':business-rescue:'+s.year)<q.successRate;
+  const cost=rescueSucceeded?q.successCost:q.failureCost;c.cash-=cost;c.pendingWorkoutFee+=cost;
+  if(rescueSucceeded){c.strategy='defend';c.team=Math.max(3,Math.min(c.team,Math.ceil(c.revenue/12)));c.expansionStreak=0;}
+ }
+ if(q.resolves&&rescueSucceeded!==false)c.distress=null;
  c.value=fundamental(c,era(s.year))*(c.integration?.9:1)*(c.distress?.5:1);runway(c);
- const entry={year:s.year,mode,fee:q.fee,raise:q.raise,converted:q.converted,principal:q.principal,debtBefore:q.debt,debtAfter:debtBalance(c),equityBefore:q.equity,equityAfter:c.equity,cashBefore:q.cash,cashAfter:c.cash,fundBefore,fundAfter:s.cash,resolved:!c.distress,changes:q.changes};c.workouts.push(entry);
- const text=`${c.name} · ${mode==='extend'?'贷款展期':mode==='convert'?'债转股':'基金救助'}：费用 ${q.fee.toFixed(1)} 万，追加 ${q.raise.toFixed(1)} 万，债转股 ${q.converted.toFixed(1)} 万；未偿本金 ${debtBalance(c).toFixed(1)} 万，基金持股 ${(c.equity*100).toFixed(1)}%${c.distress?'；钱还是不够，还得继续处理':'；眼前的资金缺口已解决'}。`;
- c.notes.push(`${s.year} 年 ${text}`);log(s,text,'warning');syncMarket(s,c);record(s);return true;
+ const entry={year:s.year,mode,fee:q.fee,raise:q.raise,converted:q.converted,principal:q.principal,debtBefore:q.debt,debtAfter:debtBalance(c),equityBefore:q.equity,equityAfter:c.equity,cashBefore:q.cash,cashAfter:c.cash,fundBefore,fundAfter:s.cash,resolved:!c.distress,changes:q.changes,...(q.riskyRescue?{month:capitalClock(s),successRate:q.successRate,success:rescueSucceeded,restructuringCost:rescueSucceeded?q.successCost:q.failureCost}: {})};c.workouts.push(entry);
+ const text=`${c.name} · ${mode==='extend'?'贷款展期':mode==='convert'?'债转股':'基金救助'}：费用 ${q.fee.toFixed(1)} 万，追加 ${q.raise.toFixed(1)} 万，债转股 ${q.converted.toFixed(1)} 万；未偿本金 ${debtBalance(c).toFixed(1)} 万，基金持股 ${(c.equity*100).toFixed(1)}%${q.riskyRescue?(rescueSucceeded?'；抢救成功，转入收缩经营':'；抢救失败，将进入清算'):c.distress?'；钱还是不够，还得继续处理':'；眼前的资金缺口已解决'}。`;
+ c.notes.push(`${s.year} 年 ${text}`);log(s,text,'warning');
+ if(q.riskyRescue){
+  expansionEvent(s,c,'rescue',rescueSucceeded?'追加投资抢救成功，已转入收缩经营；仍需继续控制成本和偿债。':'追加投资抢救失败，重整费用已支出，企业进入资产清算。');
+  if(!rescueSucceeded){liquidate(s,id,'assets',null,true);record(s);return true;}
+ }
+ syncMarket(s,c);record(s);return true;
 }
 
 // One terminal disposal. Estimates are recovery values, not an audited asset balance sheet.
@@ -1077,7 +1089,7 @@ function capitalMilestones(s){
 }
 function fundTasks(s){
  if(s.ended)return [];const rows=[];for(const c of s.portfolio.filter(c=>c.status==='active')){
-  if(c.distress)rows.push({id:c.id,priority:100,action:'workout',kind:'debt',title:c.name+' · 偿债处置',text:quarterly(s)?'下一月经营前仍未补足缺口将清算，请先核查现金与到期本金。':'缺口留到下一年将进入清算，请先核查现金与到期本金。'});
+  if(c.distress)rows.push({id:c.id,priority:100,action:'workout',kind:'debt',title:c.name+(quarterly(s)?' · 经营失败待处置':' · 偿债处置'),text:quarterly(s)?'可追加投资尝试低成功率抢救，也可出售资产；下一月经营前未处置将清算。':'缺口留到下一年将进入清算，请先核查现金与到期本金。'});
   if(c.round){const q=followQuote(s,c.id);rows.push({id:c.id,priority:80,action:'follow',kind:'follow',title:c.name+' · 本轮认购待决定',text:`约定认购款 ${money(c.round.cost)} 万，认购后持股 ${ownership(q.after??c.equity)}；不认购则保留已稀释股份。`});}
   const e=exitQuote(s,c.id);if(e)rows.push({id:c.id,priority:85,action:'offer',kind:'offer',title:c.name+' · 买方等本年答复',text:`当前报价可到账 ${money(e.value)} 万，跨年后失效。`});
   if(!c.distress&&!c.round){const q=dividendQuote(s,c.id,.5,0);if(q.ok&&q.fundProceeds>0)rows.push({id:c.id,priority:30,action:'dividend',kind:'dividend',title:c.name+' · 可以评估分红',text:`按可分配资金的一半试算，基金可收到 ${money(q.fundProceeds)} 万；比例与偿债安排仍由你决定。`});}
@@ -1196,6 +1208,7 @@ function valid(s){
   if(!['workoutYear','rescueYear'].every(k=>c[k]===null||Number.isInteger(c[k])&&c[k]>=1990&&c[k]<=s.year))return false;
   if(c.distress&&(c.status!=='active'||s.ended||c.distress.year!==s.year||c.cash>0&&debtDue(c)<=1e-7))return false;
   for(const a of c.workouts)if(!a||!['extend','convert','rescue'].includes(a.mode)||!Number.isInteger(a.year)||a.year>s.year||!['fee','raise','converted','principal','debtBefore','debtAfter','equityBefore','equityAfter','fundBefore','fundAfter'].every(k=>Number.isFinite(a[k])&&a[k]>=0)||a.equityBefore>1||a.equityAfter>1||!Number.isFinite(a.cashBefore)||!Number.isFinite(a.cashAfter)||typeof a.resolved!=='boolean'||!Array.isArray(a.changes)||!a.changes.every(x=>x&&typeof x.id==='string'&&['fee','remaining','rate','maturity'].every(k=>Number.isFinite(x[k])&&x[k]>=0)))return false;
+  for(const a of c.workouts)if(a.successRate!==undefined&&(!quarterly(s)||a.mode!=='rescue'||!Number.isInteger(a.month)||a.month<a.year*12||a.month>a.year*12+11||!Number.isFinite(a.successRate)||a.successRate<.08||a.successRate>.30||typeof a.success!=='boolean'||!Number.isFinite(a.restructuringCost)||Math.abs(a.restructuringCost-a.raise*(a.success?.08:.5))>1e-6||a.resolved!==a.success))return false;
   for(const r of c.financialHistory)if(['rescueEquity','workoutFee','noncashFee','debtConversion'].some(k=>r[k]!==undefined&&(!Number.isFinite(r[k])||r[k]<0)))return false;
  }
  if(s.version>=10){if(!Number.isFinite(s.dividends)||s.dividends<0||s.dividends>s.returned+1e-7||all.some(c=>!validDividends(c,s.year,endYear(s)))||Math.abs(s.dividends-s.portfolio.reduce((n,c)=>n+c.dividendReceived,0))>1e-6)return false;for(const c of all)for(const r of c.financialHistory)if(['dividend','allocationPrincipal'].some(k=>r[k]!==undefined&&(!Number.isFinite(r[k])||r[k]<0)))return false;}
@@ -1569,10 +1582,10 @@ function closeQuarterBook(s,c,endMonth,partial=false){
 function quarterlyOnExit(s,c){
  const b=c.capital?.extension?.quarterly;if(!quarterly(s)||!b)return;
  // A disposal may happen between month closes. Recognize paid one-off costs without inventing operating months.
- const paid=prepaidAmounts(c),liq=c.liquidation,liquidationFee=liq?.fees||0,operatingPaid=liq?.creditors.find(k=>k.id==='operating')?.paid||0,noncashRelease=liq?Math.max(0,liq.operatingClaims-operatingPaid):0,changed=Math.abs(c.cash-b.lastCash)>1e-7,hasPaid=paid.expense||paid.capex;
- if(changed||hasPaid||liq){
-  const r={...Object.fromEntries(statementSumKeys.map(k=>[k,0])),year:s.year,month:capitalClock(s),operatingMonths:0,revenue:0,costs:paid.expense+liquidationFee,profit:paid.expense+liquidationFee?-(paid.expense+liquidationFee):0,capex:paid.capex,cashFlow:paid.expense+paid.capex+liquidationFee?-(paid.expense+paid.capex+liquidationFee):0,unfundedNoncashRelease:noncashRelease,liquidationFinancing:liq?-(liq.creditorPaid-operatingPaid+liq.equityResidual)||0:0,debtBalance:debtBalance(c),increment:0,paidExpense:paid.expense+liquidationFee,paidCapex:paid.capex,noncashFee:0,creditWriteoff:0,principalPaid:0,competition:c.competition,value:c.value,ownership:c.equity,invested:c.invested,growth:0,support:0,strategy:c.strategy,event:'退出时结清已付款项与资本流量'};
-  finishMonthlyStatement(s,c,r);if(c.capital)c.capital.pendingExpense=0;for(const k of ['pendingAcquisitionFee','pendingWorkoutFee','pendingDivestFee','pendingRebuildExpense','pendingRebuildCapex','pendingNoncashFee'])if(c[k]!==undefined)c[k]=0;
+ const paid=prepaidAmounts(c),liq=c.liquidation,liquidationFee=liq?.fees||0,operatingPaid=liq?.creditors.find(k=>k.id==='operating')?.paid||0,noncashRelease=liq?Math.max(0,liq.operatingClaims-operatingPaid):0,changed=Math.abs(c.cash-b.lastCash)>1e-7,hasPaid=paid.expense||paid.capex,noncashWorkout=c.pendingNoncashFee||0,totalExpense=paid.expense+noncashWorkout+liquidationFee;
+ if(changed||hasPaid||liq||noncashWorkout){
+  const r={...Object.fromEntries(statementSumKeys.map(k=>[k,0])),year:s.year,month:capitalClock(s),operatingMonths:0,revenue:0,costs:totalExpense,profit:totalExpense?-totalExpense:0,capex:paid.capex,cashFlow:paid.expense+paid.capex+liquidationFee?-(paid.expense+paid.capex+liquidationFee):0,unfundedNoncashRelease:noncashRelease,liquidationFinancing:liq?-(liq.creditorPaid-operatingPaid+liq.equityResidual)||0:0,debtBalance:debtBalance(c),increment:0,paidExpense:paid.expense+liquidationFee,paidCapex:paid.capex,noncashFee:noncashWorkout,creditWriteoff:0,workoutFee:c.pendingWorkoutFee||0,rescueEquity:c.pendingRescueEquity||0,rescuePrincipal:c.pendingRescuePrincipal||0,principalDue:c.pendingRescuePrincipal||0,principalPaid:c.pendingRescuePrincipal||0,competition:c.competition,value:c.value,ownership:c.equity,invested:c.invested,growth:0,support:0,strategy:c.strategy,event:'退出时结清已付款项与资本流量'};
+  finishMonthlyStatement(s,c,r);if(c.capital)c.capital.pendingExpense=0;for(const k of ['pendingAcquisitionFee','pendingWorkoutFee','pendingDivestFee','pendingRebuildExpense','pendingRebuildCapex','pendingNoncashFee','pendingRescueEquity','pendingRescuePrincipal'])if(c[k]!==undefined)c[k]=0;
  }
  closeQuarterBook(s,c,Math.max(b.startMonth,b.months.at(-1)?.month??capitalClock(s)-1),true);
 }
