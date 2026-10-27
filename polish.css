@@ -9,6 +9,18 @@ body{font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;text-r
 /* Focus ring: brass on dark wood and green panels, ink-blue on paper. Visible only for keyboard focus. */
 .topbar :focus-visible,.desk-rail :focus-visible,.dialog-bar :focus-visible,.tabs :focus-visible,.desk-hero :focus-visible,.era :focus-visible{outline:3px solid #e2bd6a;outline-offset:2px}
 dialog :focus:not(:focus-visible){outline:none}
+/* One-off batch dividends share the existing company and cash hierarchy. */
+.portfolio-batch-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:12px}
+dialog:has(.batch-dividend-list){width:850px}
+.batch-dividend-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:16px;background:#eef3ef;border:1px solid var(--line);border-radius:5px;margin:18px 0}
+.batch-dividend-controls label,.batch-dividend-choice{font-size:13px}
+.batch-dividend-controls select,.batch-dividend-choice select{font:inherit;font-size:16px;min-height:44px;border:1px solid var(--line);border-radius:4px;padding:8px;background:#fff;color:var(--ink)}
+.batch-dividend-controls button,.batch-dividend-summary button{min-height:44px}
+.batch-dividend-row{display:grid;grid-template-columns:minmax(0,1fr) 135px 150px;gap:16px;align-items:center;border:1px solid var(--line);border-radius:5px;padding:16px;margin:10px 0;background:#fff}
+.batch-dividend-company{min-width:0;overflow-wrap:anywhere}.batch-dividend-company label{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}.batch-dividend-company label>span{min-width:0}.batch-dividend-company input{width:22px;height:22px;flex-shrink:0;accent-color:#173e36}.batch-dividend-company p{margin:6px 0 0;color:var(--muted)}
+.batch-dividend-choice{display:grid;gap:6px}.batch-dividend-proceeds{display:grid;gap:8px;text-align:right;font-size:12px}.batch-dividend-proceeds b{font-size:17px;overflow-wrap:anywhere}.batch-dividend-unavailable{background:#f4f4ef;grid-template-columns:minmax(0,1fr) auto}.batch-dividend-unavailable label{cursor:default}
+.batch-dividend-summary{position:sticky;bottom:0;padding:16px 0 4px;background:var(--paper,#faf8f1);border-top:1px solid var(--line);margin-top:18px;font-size:14px;z-index:2}.batch-dividend-summary strong{font-size:20px;display:inline-block}.batch-dividend-summary .modal-actions{margin-top:12px}
+@media(max-width:600px){.portfolio-batch-actions{justify-content:flex-start}.batch-dividend-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:12px;gap:8px}.batch-dividend-controls label{grid-column:1/-1}.batch-dividend-controls select{width:100%;min-width:0}.batch-dividend-controls button{min-width:0;padding:8px;font-size:12px}.batch-dividend-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:12px;gap:12px}.batch-dividend-company{grid-column:1/-1}.batch-dividend-choice select{width:100%;min-width:0}.batch-dividend-proceeds{font-size:12px}.batch-dividend-proceeds b{font-size:16px}.batch-dividend-unavailable{grid-template-columns:minmax(0,1fr)}.batch-dividend-unavailable .status-tag{justify-self:start}.batch-dividend-summary{font-size:13px}.batch-dividend-summary strong{font-size:18px}}
 
 /* Unavailable actions read as unavailable without becoming illegible. */
 button:disabled,button[disabled]{opacity:1;color:#7d877f;background:repeating-linear-gradient(135deg,#efeadc 0 6px,#e8e2d2 6px 12px);border-style:dashed;border-color:#b9b39f;box-shadow:none;cursor:not-allowed}
